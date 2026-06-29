@@ -23,6 +23,9 @@ body{background:#0a0a1a;display:flex;flex-direction:column;align-items:center;
 #round-label{color:#a855f7;font-size:9px;}
 #toolbar{width:100%;max-width:800px;display:flex;gap:6px;margin-bottom:4px;}
 .tool-btn{flex:1;padding:7px 0;border-radius:6px;font-size:12px;font-weight:bold;cursor:pointer;font-family:monospace;}
+#vol-row{width:100%;max-width:800px;display:flex;gap:10px;margin-bottom:4px;}
+.vol-label{flex:1;display:flex;align-items:center;gap:6px;font-family:monospace;font-size:11px;color:#888;}
+.vol-label input[type=range]{flex:1;accent-color:#a855f7;cursor:pointer;}
 #canvas-wrap{position:relative;width:100%;max-width:800px;}
 canvas{width:100%;height:auto;display:block;border-radius:8px;border:2px solid #a855f7;box-shadow:0 0 30px #a855f750;}
 .overlay{position:absolute;inset:0;background:rgba(0,0,0,0.93);display:flex;flex-direction:column;align-items:center;justify-content:flex-start;border-radius:8px;z-index:10;overflow-y:auto;padding:10px 8px;}
@@ -91,6 +94,10 @@ canvas{width:100%;height:auto;display:block;border-radius:8px;border:2px solid #
   <button class="tool-btn" id="menu-btn" style="background:#1e1e3a;border:1px solid #a855f7;color:#fff">⏸ MENU</button>
   <button class="tool-btn" id="cpu-btn" style="background:#1e1e3a;border:1px solid #22c55e;color:#22c55e">CPU: ON</button>
   <button class="tool-btn" id="music-btn" style="background:#1e1e3a;border:1px solid #a855f7;color:#a855f7">🎵 ON</button>
+</div>
+<div id="vol-row">
+  <label class="vol-label">🎵 MUS<input type="range" id="music-vol" min="0" max="100" value="70"></label>
+  <label class="vol-label">💥 SFX<input type="range" id="sfx-vol" min="0" max="100" value="70"></label>
 </div>
 
 <div id="canvas-wrap">
@@ -415,6 +422,8 @@ let musicEnabled = true;
 let musicPlaying = false;
 let musicTimer = null;
 let masterGainNode = null;
+let musicVolume = 0.7;
+let sfxVolume = 0.7;
 
 function getAudio() {
   if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -465,7 +474,7 @@ function startMusic(songIndex) {
     let step = 0, melStep = 0, chordStep = 0, beat = 0;
 
     const master = ac.createGain();
-    master.gain.value = 0.2;
+    master.gain.value = 0.3 * musicVolume;
     master.connect(ac.destination);
     masterGainNode = master;
 
@@ -540,7 +549,7 @@ function playTone(freq, type, dur, vol=0.3, delay=0) {
     const osc = ac.createOscillator(), g = ac.createGain();
     osc.connect(g); g.connect(ac.destination);
     osc.type = type; osc.frequency.setValueAtTime(freq, ac.currentTime + delay);
-    g.gain.setValueAtTime(vol, ac.currentTime + delay);
+    g.gain.setValueAtTime(vol * sfxVolume, ac.currentTime + delay);
     g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + delay + dur);
     osc.start(ac.currentTime + delay); osc.stop(ac.currentTime + delay + dur + 0.01);
   } catch(e) {}
@@ -553,7 +562,7 @@ function playNoise(dur, vol=0.15, minFreq=1200) {
     const src = ac.createBufferSource(), g = ac.createGain(), filt = ac.createBiquadFilter();
     filt.type = 'bandpass'; filt.frequency.value = minFreq; filt.Q.value = 0.5;
     src.buffer = buf; src.connect(filt); filt.connect(g); g.connect(ac.destination);
-    g.gain.setValueAtTime(vol, ac.currentTime);
+    g.gain.setValueAtTime(vol * sfxVolume, ac.currentTime);
     g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + dur);
     src.start(); src.stop(ac.currentTime + dur + 0.01);
   } catch(e) {}
@@ -1174,6 +1183,11 @@ function toggleMusicEnabled(){
 document.getElementById('menu-btn').onclick=togglePause;
 document.getElementById('cpu-btn').onclick=toggleCpu;
 document.getElementById('music-btn').onclick=toggleMusicEnabled;
+document.getElementById('music-vol').oninput=function(){
+  musicVolume=this.value/100;
+  if(masterGainNode)masterGainNode.gain.value=0.3*musicVolume;
+};
+document.getElementById('sfx-vol').oninput=function(){sfxVolume=this.value/100;};
 document.getElementById('start-btn').onclick=()=>{G.p1Wins=0;G.p2Wins=0;G.round=1;startRound();};
 document.getElementById('select-btn').onclick=()=>{buildCustomizeScreen();showOverlay("ov-select");};
 document.getElementById('select-back-btn').onclick=()=>{stopMusic();showOverlay("ov-title");};
