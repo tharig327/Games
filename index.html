@@ -101,6 +101,7 @@ canvas{width:100%;height:auto;display:block;border-radius:8px;border:2px solid #
     <div style="font-size:30px;font-weight:bold;color:#ffd700;text-shadow:0 0 20px #ff6b35;margin-bottom:2px;letter-spacing:4px;margin-top:4px;">STREET BRAWLER</div>
     <div style="color:#a855f7;font-size:11px;margin-bottom:10px;">VS CPU — BEST OF 3</div>
     <button class="menu-btn" id="start-btn" style="background:linear-gradient(135deg,#a855f7,#6366f1);margin-bottom:4px;margin-top:0">▶ PLAY</button>
+    <button class="menu-btn" id="tower-btn" style="background:linear-gradient(135deg,#ff6b35,#7b2d8b);margin-top:6px">🗼 TOWER</button>
     <button class="menu-btn" id="select-btn" style="background:linear-gradient(135deg,#e63946,#c1121f);margin-top:6px">🎨 CUSTOMIZE</button>
     <div style="color:#555;font-size:10px;margin-top:10px;text-align:center">A/D move · W jump · J punch · K kick · L special · ; block</div>
   </div>
@@ -118,17 +119,33 @@ canvas{width:100%;height:auto;display:block;border-radius:8px;border:2px solid #
     <canvas class="char-preview-canvas" id="preview-p1" width="80" height="110"></canvas>
     <div class="color-grid" id="swatches-p1" style="max-width:360px;margin-bottom:10px;"></div>
 
+    <!-- Difficulty select -->
+    <div class="cs-title">⚙ CPU DIFFICULTY</div>
+    <div class="select-row" style="margin-bottom:10px;" id="diff-cards"></div>
+
     <!-- Song select -->
     <div class="cs-title">🎵 MUSIC</div>
     <div class="song-list" id="song-list"></div>
 
-    <div style="color:#555;font-size:10px;margin-top:8px;text-align:center">CPU picks character &amp; color randomly each match</div>
+    <div style="color:#555;font-size:10px;margin-top:8px;text-align:center">CPU picks character &amp; color randomly each match. Difficulty also sets your Tower starting strength.</div>
 
     <div style="display:flex;gap:8px;margin-top:8px;margin-bottom:4px;">
       <button class="menu-btn" id="preview-music-btn" style="background:linear-gradient(135deg,#457b9d,#1d3557);min-width:120px;margin-top:0">▶ PREVIEW</button>
       <button class="menu-btn" id="select-back-btn" style="background:linear-gradient(135deg,#555,#333);min-width:120px;margin-top:0">← BACK</button>
     </div>
     <button class="menu-btn" id="select-play-btn" style="background:linear-gradient(135deg,#a855f7,#6366f1);margin-top:0">▶ START GAME</button>
+  </div>
+
+  <!-- TOWER INTRO -->
+  <div class="overlay hidden" id="ov-tower-intro">
+    <div style="font-size:22px;font-weight:bold;color:#ffd700;letter-spacing:3px;margin-top:6px;margin-bottom:4px;">🗼 TOWER OF BRAWLERS</div>
+    <div style="color:#a855f7;font-size:11px;margin-bottom:10px;" id="tower-diff-label">Difficulty: Normal</div>
+    <div style="color:#888;font-size:11px;margin-bottom:14px;text-align:center;max-width:340px;line-height:1.5;">
+      Climb <span style="color:#fff;font-weight:bold">7 floors</span> of increasingly tough CPU fighters, then face <span style="color:#ff0040;font-weight:bold">THE OVERLORD</span> on the final floor.<br>
+      Win a floor to advance — your health partially recovers between fights. Lose, and your climb ends.
+    </div>
+    <button class="menu-btn" id="tower-enter-btn" style="background:linear-gradient(135deg,#ff6b35,#a855f7);margin-top:0">▶ ENTER TOWER</button>
+    <button class="menu-btn" id="tower-back-btn" style="background:linear-gradient(135deg,#555,#333)">← BACK</button>
   </div>
 
   <!-- PAUSE -->
@@ -246,6 +263,41 @@ const CHARACTERS = [
 
 let selectedCharP1 = 0;
 let selectedCharP2 = 0;
+
+// ════════════════════════════════════════════════════════
+//  DIFFICULTY — sets CPU "tier" used to scale damage dealt/taken,
+//  move speed and AI aggressiveness. Tower mode ramps tier per floor.
+// ════════════════════════════════════════════════════════
+const DIFFICULTIES = [
+  { name:"Easy",   tier:0 },
+  { name:"Normal", tier:3 },
+  { name:"Hard",   tier:6 },
+];
+let selectedDifficulty = 1;
+
+// ════════════════════════════════════════════════════════
+//  TOWER MODE — fixed run of floors against ramping CPU tiers,
+//  ending in a final boss fight.
+// ════════════════════════════════════════════════════════
+const TOWER_FLOORS = 7;   // regular floors before the boss
+const TOWER_RAMP = 1.4;   // tier increase per floor
+const BOSS_BONUS = 5;     // extra tier added on top of the last floor for the boss
+const BOSS_CHAR = {
+  name:"Overlord", sub:"FINAL BOSS",
+  moveSpeed:4.5, jumpForce:-15,
+  attacks:{
+    punch:  {damage:16,range:95, duration:14,cooldown:14,knockback:5, color:"#ff0040"},
+    kick:   {damage:22,range:115,duration:18,cooldown:18,knockback:7, color:"#ff0040"},
+    special:{damage:34,range:150,duration:24,cooldown:26,knockback:10,color:"#ff0040"},
+  },
+  statPower:5,statSpeed:4,statRange:5,
+};
+const BOSS_PALETTE = { name:"Shadow", body:"#1a1a1a", dark:"#000000", skin:"#8b0000" };
+
+function towerFloorTier(floor){
+  const f = Math.min(floor, TOWER_FLOORS);
+  return DIFFICULTIES[selectedDifficulty].tier + (f-1)*TOWER_RAMP;
+}
 
 // ════════════════════════════════════════════════════════
 //  SONGS
@@ -474,23 +526,29 @@ const MAX_HEALTH=100, ROUND_TIME=60;
 // ════════════════════════════════════════════════════════
 //  FIGHTER INIT — per-character stats stored on fighter
 // ════════════════════════════════════════════════════════
-function initFighter(x, facing, charIdx) {
-  const ci = charIdx !== undefined ? charIdx : 0;
-  const char = CHARACTERS[ci];
+function initFighter(x, facing, char, tier, colors) {
+  const c = char || CHARACTERS[0];
+  const t = tier || 0;
+  const dmgDealtMult = 1 + t*0.05;
+  const dmgTakenMult = Math.max(0.55, 1 - t*0.035);
+  const speedMult = 1 + t*0.015;
   return {
     x, y:GROUND_Y, vx:0, vy:0, health:MAX_HEALTH, facing,
     state:"idle", stateTimer:0, blocking:false, onGround:true,
     hitFlash:0, attackType:null, attackCooldown:0, hitLanded:false,
-    charIdx:ci, attacks:char.attacks,
-    moveSpeed:char.moveSpeed, jumpForce:char.jumpForce,
+    charName:c.name, attacks:c.attacks, colors: colors || PALETTES[0],
+    moveSpeed:c.moveSpeed*speedMult, jumpForce:c.jumpForce,
+    dmgDealtMult, dmgTakenMult, difficultyTier:t,
   };
 }
-function initBot(){return{actionTimer:0,action:"approach",blockTimer:0,aggressionCooldown:0};}
+function initBot(tier){return{actionTimer:0,action:"approach",blockTimer:0,aggressionCooldown:0,aiAggro:tier||0};}
 
 const G={
-  p1:initFighter(150,"right",0), p2:initFighter(580,"left",0),
+  p1:initFighter(150,"right",CHARACTERS[0],0,PALETTES[0]),
+  p2:initFighter(580,"left",CHARACTERS[0],0,PALETTES[1]),
   bot:initBot(), effects:[],
   gameState:"title", paused:false, cpuEnabled:true,
+  mode:"quick", towerFloor:1,
   timer:ROUND_TIME, timerTick:0,
   prevKeys:new Set(), prevBtns:{},
   screenShake:0,
@@ -503,22 +561,24 @@ const G={
 // ════════════════════════════════════════════════════════
 function updateBot(){
   const bot=G.bot,p2=G.p2,p1=G.p1;
+  const aggro=bot.aiAggro||0;
+  const aggroBoost=Math.min(aggro*0.04,0.45);
   const dist=Math.abs(p2.x-p1.x);
   const canAct=p2.state!=="attack"&&p2.state!=="hit";
   let left=false,right=false,jump=false,block=false,punch=false,kick=false,special=false;
   if(bot.actionTimer>0)bot.actionTimer--;
   if(bot.aggressionCooldown>0)bot.aggressionCooldown--;
   if(bot.blockTimer>0){bot.blockTimer--;block=true;}
-  if(p2.hitFlash>0&&bot.blockTimer<=0&&Math.random()<0.25)bot.blockTimer=18+Math.floor(Math.random()*18);
+  if(p2.hitFlash>0&&bot.blockTimer<=0&&Math.random()<0.25+aggro*0.02)bot.blockTimer=18+Math.floor(Math.random()*18);
   const isLow=p2.health<30,oppLow=p1.health<30;
   if(bot.actionTimer<=0&&!block){
     const r=Math.random();
-    if(dist>200){bot.action="approach";bot.actionTimer=20+Math.floor(Math.random()*30);}
-    else if(dist<60){bot.action=r<0.5?"attack":"retreat";bot.actionTimer=r<0.5?8:20;}
+    if(dist>200){bot.action="approach";bot.actionTimer=Math.max(8,20-aggro)+Math.floor(Math.random()*30);}
+    else if(dist<60){bot.action=r<0.5+aggroBoost*0.3?"attack":"retreat";bot.actionTimer=r<0.5?8:20;}
     else{
-      if(r<0.45){bot.action="attack";bot.actionTimer=12;}
-      else if(r<0.6){bot.action="retreat";bot.actionTimer=25;}
-      else if(r<0.75){bot.action="approach";bot.actionTimer=20;}
+      if(r<0.45+aggroBoost){bot.action="attack";bot.actionTimer=Math.max(6,12-aggro);}
+      else if(r<0.6+aggroBoost*0.5){bot.action="retreat";bot.actionTimer=25;}
+      else if(r<0.75+aggroBoost*0.5){bot.action="approach";bot.actionTimer=20;}
       else{bot.action="wait";bot.actionTimer=15;}
     }
     if(Math.random()<0.08&&p2.onGround)jump=true;
@@ -529,13 +589,13 @@ function updateBot(){
     if(bot.action==="approach"&&canAct){md>0?right=true:left=true;}
     else if(bot.action==="retreat"&&canAct){md>0?left=true:right=true;}
     else if(bot.action==="attack"&&canAct&&bot.aggressionCooldown<=0){
-      if(dist<p2.attacks.special.range&&Math.random()<(isLow?0.05:0.10)){special=true;bot.aggressionCooldown=40;}
-      else if(dist<p2.attacks.kick.range&&Math.random()<0.35){kick=true;bot.aggressionCooldown=20;}
-      else if(dist<p2.attacks.punch.range&&Math.random()<0.5){punch=true;bot.aggressionCooldown=12;}
+      if(dist<p2.attacks.special.range&&Math.random()<(isLow?0.05:0.10)+aggroBoost*0.6){special=true;bot.aggressionCooldown=Math.max(14,40-aggro*2);}
+      else if(dist<p2.attacks.kick.range&&Math.random()<0.35+aggroBoost){kick=true;bot.aggressionCooldown=Math.max(8,20-aggro);}
+      else if(dist<p2.attacks.punch.range&&Math.random()<0.5+aggroBoost){punch=true;bot.aggressionCooldown=Math.max(5,12-aggro);}
       else{md>0?right=true:left=true;}
     }
-    if(isLow&&dist<p2.attacks.special.range&&canAct&&bot.aggressionCooldown<=0&&Math.random()<0.04){special=true;bot.aggressionCooldown=35;}
-    if(oppLow&&dist<p2.attacks.kick.range&&canAct&&bot.aggressionCooldown<=0&&Math.random()<0.18){kick=true;bot.aggressionCooldown=15;}
+    if(isLow&&dist<p2.attacks.special.range&&canAct&&bot.aggressionCooldown<=0&&Math.random()<0.04+aggroBoost*0.4){special=true;bot.aggressionCooldown=35;}
+    if(oppLow&&dist<p2.attacks.kick.range&&canAct&&bot.aggressionCooldown<=0&&Math.random()<0.18+aggroBoost*0.4){kick=true;bot.aggressionCooldown=15;}
   }
   return{left,right,jump,block,punch,kick,special};
 }
@@ -736,6 +796,21 @@ function buildCustomizeScreen() {
     grid.appendChild(sw);
   });
 
+  // Difficulty cards
+  const diffCards = document.getElementById('diff-cards');
+  diffCards.innerHTML = '';
+  DIFFICULTIES.forEach((diff, i) => {
+    const card = document.createElement('div');
+    card.className = 'char-card' + (i === selectedDifficulty ? ' selected' : '');
+    card.style.maxWidth = '110px';
+    card.innerHTML = `<div class="cname">${diff.name}</div><div class="csub">TIER ${diff.tier}</div>`;
+    card.addEventListener('click', () => {
+      selectedDifficulty = i;
+      diffCards.querySelectorAll('.char-card').forEach((c,j) => c.classList.toggle('selected', j===i));
+    });
+    diffCards.appendChild(card);
+  });
+
   // Song list
   const songList = document.getElementById('song-list');
   songList.innerHTML = '';
@@ -760,7 +835,10 @@ function spawnHit(attacker, defender, type) {
   const atk = attacker.attacks[type];
   const hitX=defender.x+CHAR_WIDTH/2, hitY=defender.y+(type==="kick"?50:20);
   if(defender.blocking){G.effects.push({x:hitX,y:hitY,color:"#74b3ce",text:"BLOCK",size:30,life:25,maxLife:25,type:"block"});sfxBlock();return;}
-  const dmg=atk.damage;
+  let dmg=atk.damage;
+  if(attacker.dmgDealtMult)dmg=dmg*attacker.dmgDealtMult;
+  if(defender.dmgTakenMult)dmg=dmg*defender.dmgTakenMult;
+  dmg=Math.round(dmg);
   defender.health=Math.max(0,defender.health-dmg);
   defender.hitFlash=14;defender.state="hit";
   defender.stateTimer=type==="special"?18:type==="kick"?13:9;
@@ -811,30 +889,32 @@ function updateHUD(){
   const p2f=document.getElementById('p2fill');
   p2f.style.width=G.p2.health+"%";p2f.style.background=hpColor(G.p2.health);p2f.style.boxShadow=`0 0 8px ${hpColor(G.p2.health)}`;
   document.getElementById('timer-val').textContent=G.timer;
-  document.getElementById('round-label').textContent=`RND ${G.round}`;
-  document.getElementById('p1stars').textContent="★".repeat(G.p1Wins)+"☆".repeat(2-G.p1Wins);
-  document.getElementById('p2stars').textContent="★".repeat(G.p2Wins)+"☆".repeat(2-G.p2Wins);
-  document.getElementById('p1name').textContent=CHARACTERS[G.p1.charIdx].name;
-  document.getElementById('p1name').style.color=PALETTES[selectedP1].body;
-  document.getElementById('p2name').textContent=CHARACTERS[G.p2.charIdx].name;
-  document.getElementById('p2name').style.color=PALETTES[selectedP2].body;
+  document.getElementById('round-label').textContent=G.mode==="tower"?`FLOOR ${G.towerFloor}/${TOWER_FLOORS+1}`:`RND ${G.round}`;
+  document.getElementById('p1stars').textContent=G.mode==="tower"?"":"★".repeat(G.p1Wins)+"☆".repeat(2-G.p1Wins);
+  document.getElementById('p2stars').textContent=G.mode==="tower"?"":"★".repeat(G.p2Wins)+"☆".repeat(2-G.p2Wins);
+  document.getElementById('p1name').textContent=G.p1.charName;
+  document.getElementById('p1name').style.color=G.p1.colors.body;
+  document.getElementById('p2name').textContent=G.p2.charName;
+  document.getElementById('p2name').style.color=G.p2.colors.body;
 }
 
 function showOverlay(id){
-  ["ov-title","ov-select","ov-pause","ov-gameover"].forEach(x=>{
+  ["ov-title","ov-select","ov-pause","ov-gameover","ov-tower-intro"].forEach(x=>{
     document.getElementById(x).classList.toggle("hidden",x!==id);
   });
 }
 
 function startRound(){
+  G.mode="quick";
   // CPU picks a random character and a color different from P1
   selectedCharP2 = Math.floor(Math.random() * CHARACTERS.length);
   selectedP2 = Math.floor(Math.random() * PALETTES.length);
   if(selectedP2 === selectedP1) selectedP2 = (selectedP2 + 1) % PALETTES.length;
 
-  G.p1=initFighter(150,"right",selectedCharP1);
-  G.p2=initFighter(580,"left",selectedCharP2);
-  G.bot=initBot();G.effects=[];
+  const tier = DIFFICULTIES[selectedDifficulty].tier;
+  G.p1=initFighter(150,"right",CHARACTERS[selectedCharP1],0,PALETTES[selectedP1]);
+  G.p2=initFighter(580,"left",CHARACTERS[selectedCharP2],tier,PALETTES[selectedP2]);
+  G.bot=initBot(tier);G.effects=[];
   G.timer=ROUND_TIME;G.timerTick=0;
   G.paused=false;G.gameState="fight";
   G.prevKeys=new Set();G.prevBtns={};
@@ -846,11 +926,64 @@ function startRound(){
 
 function endRound(winner){
   G.gameState="roundEnd";G.winner=winner;
-  if(winner==="P1")G.p1Wins++;else if(winner==="P2")G.p2Wins++;
   sfxKO();
+  if(G.mode==="tower"){
+    if(winner==="P1")announce(G.towerFloor>TOWER_FLOORS?"BOSS DEFEATED!":"FLOOR CLEAR!",150);
+    else announce("K.O.! TOWER OVER",150);
+    return;
+  }
+  if(winner==="P1")G.p1Wins++;else if(winner==="P2")G.p2Wins++;
   if(winner==="P1")announce("K.O.! YOU WIN!",180);
   else if(winner==="P2")announce("K.O.! CPU WINS!",180);
   else announce("DRAW!",180);
+}
+
+// ════════════════════════════════════════════════════════
+//  TOWER MODE
+// ════════════════════════════════════════════════════════
+function startTowerFloor(floor, p1Health){
+  G.mode="tower";
+  G.towerFloor=floor;
+  const isBoss = floor === TOWER_FLOORS+1;
+  let charObj, palette, tier;
+  if(isBoss){
+    charObj=BOSS_CHAR; palette=BOSS_PALETTE; tier=towerFloorTier(TOWER_FLOORS)+BOSS_BONUS;
+  } else {
+    const ci = Math.floor(Math.random()*CHARACTERS.length);
+    let pi = Math.floor(Math.random()*PALETTES.length);
+    if(pi===selectedP1) pi=(pi+1)%PALETTES.length;
+    charObj=CHARACTERS[ci]; palette=PALETTES[pi]; tier=towerFloorTier(floor);
+  }
+  G.p1=initFighter(150,"right",CHARACTERS[selectedCharP1],0,PALETTES[selectedP1]);
+  G.p1.health=Math.round(p1Health!==undefined?p1Health:MAX_HEALTH);
+  G.p2=initFighter(580,"left",charObj,tier,palette);
+  G.bot=initBot(tier);G.effects=[];
+  G.timer=ROUND_TIME;G.timerTick=0;
+  G.paused=false;G.gameState="fight";
+  G.prevKeys=new Set();G.prevBtns={};
+  showOverlay(null);
+  if(musicEnabled)startMusic(selectedSong);
+  sfxFight();
+  announce(isBoss?"FINAL BOSS!":`FLOOR ${floor}`,60);
+}
+
+function advanceTowerFloor(){
+  const missing = MAX_HEALTH - G.p1.health;
+  const healedHealth = Math.min(MAX_HEALTH, G.p1.health + missing*0.25);
+  const nextFloor = G.towerFloor+1;
+  if(nextFloor > TOWER_FLOORS+1) towerVictory();
+  else startTowerFloor(nextFloor, healedHealth);
+}
+
+function towerVictory(){
+  G.gameState="gameOver";stopMusic();sfxRound();
+  document.getElementById('go-winner').textContent="🏆 TOWER CLEARED!";
+  document.getElementById('go-score').textContent=`Defeated the Overlord on ${DIFFICULTIES[selectedDifficulty].name}!`;
+  showOverlay("ov-gameover");
+}
+
+function updateTowerIntroLabel(){
+  document.getElementById('tower-diff-label').textContent=`Difficulty: ${DIFFICULTIES[selectedDifficulty].name}`;
 }
 
 // ════════════════════════════════════════════════════════
@@ -901,6 +1034,15 @@ function loop(){
     if(G.announceTimer>0)G.announceTimer--;
   } else if(G.gameState==="roundEnd"){
     if(G.announceTimer>0)G.announceTimer--;
+    else if(G.mode==="tower"){
+      if(G.winner==="P1"){advanceTowerFloor();}
+      else{
+        G.gameState="gameOver";stopMusic();
+        document.getElementById('go-winner').textContent=G.towerFloor>TOWER_FLOORS?"DEFEATED BY THE BOSS":"TOWER OVER";
+        document.getElementById('go-score').textContent=`Reached Floor ${G.towerFloor} / ${TOWER_FLOORS+1}`;
+        showOverlay("ov-gameover");
+      }
+    }
     else{
       if(G.p1Wins>=2||G.p2Wins>=2){
         G.gameState="gameOver";stopMusic();
@@ -916,8 +1058,8 @@ function loop(){
   ctx.save();
   if(G.screenShake>0)ctx.translate((Math.random()-0.5)*G.screenShake*1.5,(Math.random()-0.5)*G.screenShake*0.8);
   drawBG();
-  drawFighterOn(ctx,G.p1,PALETTES[selectedP1],CHARACTERS[G.p1.charIdx].name);
-  drawFighterOn(ctx,G.p2,PALETTES[selectedP2],CHARACTERS[G.p2.charIdx].name);
+  drawFighterOn(ctx,G.p1,G.p1.colors,G.p1.charName);
+  drawFighterOn(ctx,G.p2,G.p2.colors,G.p2.charName);
   drawEffects();
   ctx.restore();
   if(G.announceText&&G.announceTimer>0){
@@ -957,6 +1099,9 @@ document.getElementById('start-btn').onclick=()=>{G.p1Wins=0;G.p2Wins=0;G.round=
 document.getElementById('select-btn').onclick=()=>{buildCustomizeScreen();showOverlay("ov-select");};
 document.getElementById('select-back-btn').onclick=()=>{stopMusic();showOverlay("ov-title");};
 document.getElementById('select-play-btn').onclick=()=>{G.p1Wins=0;G.p2Wins=0;G.round=1;startRound();};
+document.getElementById('tower-btn').onclick=()=>{updateTowerIntroLabel();showOverlay("ov-tower-intro");};
+document.getElementById('tower-back-btn').onclick=()=>showOverlay("ov-title");
+document.getElementById('tower-enter-btn').onclick=()=>startTowerFloor(1,MAX_HEALTH);
 let previewing=false;
 document.getElementById('preview-music-btn').onclick=()=>{
   getAudio();
@@ -964,9 +1109,12 @@ document.getElementById('preview-music-btn').onclick=()=>{
   else{previewing=true;document.getElementById('preview-music-btn').textContent="⏹ STOP";startMusic(selectedSong);}
 };
 document.getElementById('resume-btn').onclick=togglePause;
-document.getElementById('restart-btn').onclick=()=>{G.paused=false;showOverlay(null);startRound();};
+document.getElementById('restart-btn').onclick=()=>{G.paused=false;showOverlay(null);if(G.mode==="tower")startTowerFloor(G.towerFloor,MAX_HEALTH);else startRound();};
 document.getElementById('mainmenu-btn').onclick=()=>{G.paused=false;G.gameState="title";stopMusic();showOverlay("ov-title");document.getElementById('menu-btn').textContent="⏸ MENU";};
-document.getElementById('again-btn').onclick=()=>{G.p1Wins=0;G.p2Wins=0;G.round=1;startRound();};
+document.getElementById('again-btn').onclick=()=>{
+  if(G.mode==="tower"){updateTowerIntroLabel();showOverlay("ov-tower-intro");}
+  else{G.p1Wins=0;G.p2Wins=0;G.round=1;startRound();}
+};
 document.getElementById('go-menu-btn').onclick=()=>{G.gameState="title";stopMusic();showOverlay("ov-title");};
 
 document.getElementById('song-list')?.addEventListener('click',()=>{
