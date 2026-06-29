@@ -91,6 +91,7 @@ canvas{width:100%;height:auto;display:block;border-radius:8px;border:2px solid #
 <div id="toolbar">
   <button class="tool-btn" id="menu-btn" style="background:#1e1e3a;border:1px solid #a855f7;color:#fff">⏸ MENU</button>
   <button class="tool-btn" id="cpu-btn" style="background:#1e1e3a;border:1px solid #22c55e;color:#22c55e">CPU: ON</button>
+  <button class="tool-btn" id="music-btn" style="background:#1e1e3a;border:1px solid #a855f7;color:#a855f7">🎵 ON</button>
 </div>
 
 <div id="canvas-wrap">
@@ -352,6 +353,56 @@ const SONGS = [
     chords:  [[196,247,294],[175,220,262],[185,233,277],[165,208,247]],
     bassType:"square", melType:"square",
     hasDrums:true, hasHihat:true, staccato:true,
+  },
+  {
+    name: "Warrior's Theme",
+    desc: "Epic orchestral — dramatic power",
+    bpm: 138,
+    bass:    [65,65,73,65, 87,87,98,87, 82,82,87,82, 73,73,82,73],
+    melody:  [329,0,392,440,494,0,440,392, 329,0,369,0,392,329,261,0, 293,0,329,0,369,415,440,0, 494,523,587,0,523,494,392,0],
+    chords:  [[164,207,261],[196,246,293],[155,196,233],[130,164,196]],
+    bassType:"triangle", melType:"sine",
+    hasDrums:true, hasHihat:false, slowHat:true, warmth:true,
+  },
+  {
+    name: "Neon Rumble",
+    desc: "Funky groove — smooth but deadly",
+    bpm: 122,
+    bass:    [82,0,82,98, 0,87,0,82, 87,0,82,110, 0,98,87,0],
+    melody:  [440,0,494,440, 392,0,440,0, 523,0,494,0, 440,392,329,0, 392,0,440,0, 494,440,392,0, 440,0,494,440, 392,0,329,0],
+    chords:  [[220,277,329],[196,247,294],[207,261,311],[174,220,261]],
+    bassType:"sawtooth", melType:"triangle",
+    hasDrums:true, hasHihat:true,
+  },
+  {
+    name: "Blood Sport",
+    desc: "Heavy metal — pure aggression",
+    bpm: 178,
+    bass:    [87,87,82,87, 87,82,73,82, 65,65,73,65, 82,73,65,73],
+    melody:  [523,0,587,523, 494,523,494,0, 659,0,587,523, 494,0,523,0, 440,494,523,587, 523,0,494,440, 392,0,440,494, 523,494,440,0],
+    chords:  [[174,220,261],[155,196,233],[130,164,196],[164,207,246]],
+    bassType:"sawtooth", melType:"square",
+    hasDrums:true, hasHihat:true, extraPerc:true,
+  },
+  {
+    name: "Eastern Wind",
+    desc: "Pentatonic flow — ancient fury",
+    bpm: 108,
+    bass:    [55,0,65,0, 55,0,73,0, 65,0,55,0, 73,65,55,0],
+    melody:  [440,0,523,0,587,659,587,0, 523,0,440,0,392,0,329,0, 440,0,523,587,659,0,587,523, 440,0,392,0,329,0,329,392],
+    chords:  [[110,165,220],[98,147,196],[110,165,220],[87,130,196]],
+    bassType:"sine", melType:"sine",
+    hasDrums:true, hasHihat:false, slowHat:true, warmth:true,
+  },
+  {
+    name: "Final Round",
+    desc: "Boss battle theme — do or die",
+    bpm: 165,
+    bass:    [82,82,87,82, 73,73,82,87, 65,65,73,82, 87,82,73,65],
+    melody:  [440,0,494,523,587,0,523,494, 440,0,392,0,440,494,440,0, 392,0,440,0,494,523,494,0, 587,659,587,0,523,0,494,440],
+    chords:  [[220,261,329],[184,220,277],[164,207,261],[196,246,293]],
+    bassType:"sawtooth", melType:"sawtooth",
+    hasDrums:true, hasHihat:true, extraPerc:true,
   },
 ];
 
@@ -1092,9 +1143,20 @@ function toggleCpu(){
   btn.style.color=cpuOn?"#22c55e":"#ef4444";
   btn.style.background=cpuOn?"#1e1e3a":"#2a1a1a";
 }
+function toggleMusicEnabled(){
+  musicEnabled=!musicEnabled;
+  const btn=document.getElementById('music-btn');
+  btn.textContent=`🎵 ${musicEnabled?"ON":"OFF"}`;
+  btn.style.borderColor=musicEnabled?"#a855f7":"#ef4444";
+  btn.style.color=musicEnabled?"#a855f7":"#ef4444";
+  btn.style.background=musicEnabled?"#1e1e3a":"#2a1a1a";
+  if(!musicEnabled)stopMusic();
+  else if(G.gameState==="fight"&&!G.paused)startMusic(selectedSong);
+}
 
 document.getElementById('menu-btn').onclick=togglePause;
 document.getElementById('cpu-btn').onclick=toggleCpu;
+document.getElementById('music-btn').onclick=toggleMusicEnabled;
 document.getElementById('start-btn').onclick=()=>{G.p1Wins=0;G.p2Wins=0;G.round=1;startRound();};
 document.getElementById('select-btn').onclick=()=>{buildCustomizeScreen();showOverlay("ov-select");};
 document.getElementById('select-back-btn').onclick=()=>{stopMusic();showOverlay("ov-title");};
