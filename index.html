@@ -103,7 +103,7 @@ canvas{width:100%;height:auto;display:block;border-radius:8px;border:2px solid #
     <button class="menu-btn" id="start-btn" style="background:linear-gradient(135deg,#a855f7,#6366f1);margin-bottom:4px;margin-top:0">▶ PLAY</button>
     <button class="menu-btn" id="tower-btn" style="background:linear-gradient(135deg,#ff6b35,#7b2d8b);margin-top:6px">🗼 TOWER</button>
     <button class="menu-btn" id="select-btn" style="background:linear-gradient(135deg,#e63946,#c1121f);margin-top:6px">🎨 CUSTOMIZE</button>
-    <div style="color:#555;font-size:10px;margin-top:10px;text-align:center">A/D move · W jump · J punch · K kick · L special · ; block</div>
+    <div style="color:#444;font-size:10px;margin-top:auto;padding-top:14px;text-align:center">A/D move · W jump · J punch · K kick · L special · ; block</div>
   </div>
 
   <!-- CHARACTER + MUSIC SELECT SCREEN -->
@@ -867,9 +867,9 @@ function updateFighter(f, opp, inp) {
     const dur=f.attacks[f.attackType].duration,prog=1-(f.stateTimer/dur);
     if(prog>0.25&&prog<0.75&&Math.abs(f.x-opp.x)<f.attacks[f.attackType].range){f.hitLanded=true;spawnHit(f,opp,f.attackType);}
   }
-  if(canAct&&!f.blocking){
-    if(inp.left){f.vx=-f.moveSpeed;if(f.onGround)f.state="walk";}
-    else if(inp.right){f.vx=f.moveSpeed;if(f.onGround)f.state="walk";}
+  if(!f.blocking&&f.state!=="hit"){
+    if(inp.left){f.vx=-f.moveSpeed;if(f.onGround&&f.state!=="attack")f.state="walk";}
+    else if(inp.right){f.vx=f.moveSpeed;if(f.onGround&&f.state!=="attack")f.state="walk";}
     else{f.vx*=0.7;if(f.onGround&&f.state==="walk")f.state="idle";}
   }else if(f.state==="hit")f.vx*=0.8;
   if(inp.jump&&f.onGround&&canAct){f.vy=f.jumpForce;f.onGround=false;f.state="jump";}
