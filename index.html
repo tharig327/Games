@@ -111,6 +111,7 @@ canvas{width:100%;height:auto;display:block;border-radius:8px;border:2px solid #
     <button class="menu-btn" id="start-btn" style="background:linear-gradient(135deg,#a855f7,#6366f1);margin-bottom:4px;margin-top:0">▶ PLAY</button>
     <button class="menu-btn" id="tower-btn" style="background:linear-gradient(135deg,#ff6b35,#7b2d8b);margin-top:6px">🗼 TOWER</button>
     <button class="menu-btn" id="select-btn" style="background:linear-gradient(135deg,#e63946,#c1121f);margin-top:6px">🎨 CUSTOMIZE</button>
+    <button class="menu-btn" id="scores-btn" style="background:linear-gradient(135deg,#b8860b,#7b5800);margin-top:6px">🏆 LEADERBOARD</button>
     <div style="color:#444;font-size:10px;margin-top:auto;padding-top:14px;text-align:center">A/D move · W jump · J punch · K kick · L special · ; block</div>
   </div>
 
@@ -173,6 +174,25 @@ canvas{width:100%;height:auto;display:block;border-radius:8px;border:2px solid #
     <div style="color:#fff;margin-bottom:8px;font-size:13px" id="go-score"></div>
     <button class="menu-btn" id="again-btn" style="background:linear-gradient(135deg,#a855f7,#6366f1)">↺ PLAY AGAIN</button>
     <button class="menu-btn" id="go-menu-btn" style="background:linear-gradient(135deg,#555,#333)">⌂ MAIN MENU</button>
+  </div>
+
+  <!-- INITIALS ENTRY -->
+  <div class="overlay hidden" id="ov-initials">
+    <div style="font-size:24px;font-weight:bold;color:#ffd700;text-shadow:0 0 20px #ff6b35;letter-spacing:3px;margin-top:8px;">🏆 TOWER CLEARED!</div>
+    <div style="color:#a855f7;font-size:12px;margin-bottom:16px;" id="init-diff-label"></div>
+    <div style="color:#888;font-size:11px;font-family:monospace;letter-spacing:1px;margin-bottom:8px;">ENTER YOUR INITIALS</div>
+    <input id="initials-input" maxlength="3" autocomplete="off" spellcheck="false"
+      style="font-size:36px;width:120px;text-align:center;background:#0d0d1f;border:2px solid #ffd700;color:#ffd700;font-family:monospace;border-radius:8px;padding:10px 8px;letter-spacing:14px;text-transform:uppercase;margin-bottom:16px;outline:none;">
+    <button class="menu-btn" id="initials-submit" style="background:linear-gradient(135deg,#b8860b,#7b5800);color:#fff;margin-bottom:4px;">✓ SUBMIT SCORE</button>
+    <button class="menu-btn" id="initials-skip" style="background:linear-gradient(135deg,#555,#333);">SKIP</button>
+  </div>
+
+  <!-- LEADERBOARD -->
+  <div class="overlay hidden" id="ov-leaderboard">
+    <div style="font-size:22px;font-weight:bold;color:#ffd700;letter-spacing:3px;margin-top:6px;margin-bottom:2px;">🏆 LEADERBOARD</div>
+    <div style="color:#555;font-size:10px;font-family:monospace;letter-spacing:1px;margin-bottom:8px;">TOWER CLEARS</div>
+    <div id="lb-entries" style="width:100%;flex:1;overflow-y:auto;min-height:80px;"></div>
+    <button class="menu-btn" id="lb-back-btn" style="background:linear-gradient(135deg,#555,#333);margin-top:8px;">← BACK</button>
   </div>
 </div>
 
@@ -1047,7 +1067,7 @@ function updateHUD(){
 }
 
 function showOverlay(id){
-  ["ov-title","ov-select","ov-pause","ov-gameover","ov-tower-intro"].forEach(x=>{
+  ["ov-title","ov-select","ov-pause","ov-gameover","ov-tower-intro","ov-initials","ov-leaderboard"].forEach(x=>{
     document.getElementById(x).classList.toggle("hidden",x!==id);
   });
 }
@@ -1125,9 +1145,10 @@ function advanceTowerFloor(){
 
 function towerVictory(){
   G.gameState="gameOver";stopMusic();sfxRound();
-  document.getElementById('go-winner').textContent="🏆 TOWER CLEARED!";
-  document.getElementById('go-score').textContent=`Defeated the Overlord on ${DIFFICULTIES[selectedDifficulty].name}!`;
-  showOverlay("ov-gameover");
+  document.getElementById('init-diff-label').textContent=`Defeated the Overlord on ${DIFFICULTIES[selectedDifficulty].name}!`;
+  const inp=document.getElementById('initials-input');inp.value='';
+  showOverlay("ov-initials");
+  setTimeout(()=>inp.focus(),100);
 }
 
 function updateTowerIntroLabel(){
@@ -1319,6 +1340,103 @@ document.getElementById('go-menu-btn').onclick=()=>{G.gameState="title";stopMusi
 document.getElementById('song-list')?.addEventListener('click',()=>{
   if(previewing){stopMusic();startMusic(selectedSong);}
 });
+
+// ════════════════════════════════════════════════════════
+//  LEADERBOARD
+// ════════════════════════════════════════════════════════
+// Optional: set a GitHub fine-grained PAT (contents:write on this repo) to sync scores across devices.
+// Leave empty to use localStorage only.
+const GITHUB_TOKEN='';
+const LB_KEY='streetBrawlerLeaderboard';
+const LB_REPO='tharig327/Fighter';
+const LB_FILE='leaderboard.json';
+
+function getLocalLB(){try{return JSON.parse(localStorage.getItem(LB_KEY))||[];}catch(e){return[];}}
+function saveLocalLB(e){try{localStorage.setItem(LB_KEY,JSON.stringify(e));}catch(e){}}
+
+function mergeLB(a,b){
+  const seen=new Set(),merged=[];
+  for(const e of[...a,...b]){const k=`${e.initials}-${e.date}-${e.tier}`;if(!seen.has(k)){seen.add(k);merged.push(e);}}
+  return merged.sort((a,b)=>b.tier-a.tier||new Date(b.date)-new Date(a.date)).slice(0,10);
+}
+
+async function fetchGithubLB(){
+  try{
+    const r=await fetch(`https://raw.githubusercontent.com/${LB_REPO}/main/${LB_FILE}?_=${Date.now()}`);
+    if(!r.ok)return[];return await r.json();
+  }catch(e){return[];}
+}
+
+async function pushGithubLB(entries){
+  if(!GITHUB_TOKEN)return;
+  try{
+    const url=`https://api.github.com/repos/${LB_REPO}/contents/${LB_FILE}`;
+    const h={'Authorization':`Bearer ${GITHUB_TOKEN}`,'Content-Type':'application/json'};
+    const fd=await(await fetch(url,{headers:h})).json();
+    await fetch(url,{method:'PUT',headers:h,body:JSON.stringify({
+      message:'Update leaderboard',
+      content:btoa(unescape(encodeURIComponent(JSON.stringify(entries,null,2)))),
+      sha:fd.sha
+    })});
+  }catch(e){}
+}
+
+async function submitScore(initials){
+  const entry={
+    initials:initials.toUpperCase().replace(/[^A-Z0-9]/g,'').padEnd(3,'?').slice(0,3),
+    difficulty:DIFFICULTIES[selectedDifficulty].name,
+    tier:DIFFICULTIES[selectedDifficulty].tier,
+    date:new Date().toISOString().slice(0,10)
+  };
+  const merged=mergeLB([...getLocalLB(),entry],await fetchGithubLB());
+  saveLocalLB(merged);
+  await pushGithubLB(merged);
+  return merged;
+}
+
+async function buildLeaderboardScreen(){
+  const entries=mergeLB(getLocalLB(),await fetchGithubLB());
+  const el=document.getElementById('lb-entries');
+  if(!entries.length){
+    el.innerHTML='<div style="color:#555;font-family:monospace;font-size:12px;text-align:center;padding:24px 0;">No clears yet.<br>Beat the tower to enter!</div>';
+    return;
+  }
+  const rc=['#ffd700','#c0c0c0','#cd7f32'];
+  el.innerHTML=entries.map((e,i)=>`
+    <div style="display:flex;align-items:center;gap:10px;padding:6px 10px;border-bottom:1px solid #1a1a2e;font-family:monospace;">
+      <span style="color:${rc[i]||'#555'};font-size:11px;min-width:22px;text-align:right">#${i+1}</span>
+      <span style="color:#ffd700;font-size:20px;letter-spacing:6px;min-width:74px">${e.initials}</span>
+      <span style="color:${e.tier>=6?'#ef4444':e.tier>=3?'#a855f7':'#22c55e'};flex:1;font-size:11px">${e.difficulty}</span>
+      <span style="color:#444;font-size:10px">${e.date}</span>
+    </div>`).join('');
+}
+
+// Initials input: enforce uppercase alphanumeric
+document.getElementById('initials-input').addEventListener('input',function(){
+  this.value=this.value.replace(/[^A-Za-z0-9]/g,'').toUpperCase();
+});
+document.getElementById('initials-input').addEventListener('keydown',e=>{
+  if(e.key==='Enter')document.getElementById('initials-submit').click();
+});
+document.getElementById('initials-submit').onclick=async()=>{
+  const val=document.getElementById('initials-input').value;
+  if(!val.trim())return;
+  document.getElementById('initials-submit').textContent='Saving…';
+  await submitScore(val);
+  await buildLeaderboardScreen();
+  showOverlay("ov-leaderboard");
+  document.getElementById('initials-submit').textContent='✓ SUBMIT SCORE';
+};
+document.getElementById('initials-skip').onclick=()=>{
+  document.getElementById('go-winner').textContent="🏆 TOWER CLEARED!";
+  document.getElementById('go-score').textContent=`Defeated the Overlord on ${DIFFICULTIES[selectedDifficulty].name}!`;
+  showOverlay("ov-gameover");
+};
+document.getElementById('lb-back-btn').onclick=()=>showOverlay("ov-title");
+document.getElementById('scores-btn').onclick=async()=>{
+  await buildLeaderboardScreen();
+  showOverlay("ov-leaderboard");
+};
 
 loadSettings();
 loop();
