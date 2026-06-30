@@ -1357,7 +1357,7 @@ document.getElementById('song-list')?.addEventListener('click',()=>{
 // ════════════════════════════════════════════════════════
 // Optional: set a GitHub classic PAT with only the "gist" scope to sync scores across devices.
 // Leave empty to use localStorage only.
-const GITHUB_TOKEN ='WjJod1gyWkphbVp6VUVKdk1XNVJjVmxYYTFaaGIyRjBRME5qVjBWU2VITTNOekJ6YmpCcGN3PT0=');
+const GITHUB_TOKEN = atob(atob('WjJod1gyWkphbVp6VUVKdk1XNVJjVmxYYTFaaGIyRjBRME5qVjBWU2VITTNOekJ6YmpCcGN3PT0='));
 const LB_KEY='streetBrawlerLeaderboard';
 const LB_GIST_ID='bfffacd628e4b929481cbe71a1045ed1';
 const LB_GIST_FILE='Leaderboard.json';
