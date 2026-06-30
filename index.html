@@ -1355,12 +1355,12 @@ document.getElementById('song-list')?.addEventListener('click',()=>{
 // ════════════════════════════════════════════════════════
 //  LEADERBOARD
 // ════════════════════════════════════════════════════════
-// Optional: set a GitHub fine-grained PAT (contents:write on this repo) to sync scores across devices.
+// Optional: set a GitHub classic PAT with only the "gist" scope to sync scores across devices.
 // Leave empty to use localStorage only.
 const GITHUB_TOKEN='';
 const LB_KEY='streetBrawlerLeaderboard';
-const LB_REPO='tharig327/Fighter';
-const LB_FILE='leaderboard.json';
+const LB_GIST_ID='bfffacd628e4b929481cbe71a1045ed1';
+const LB_GIST_FILE='Leaderboard.json';
 
 function getLocalLB(){try{return JSON.parse(localStorage.getItem(LB_KEY))||[];}catch(e){return[];}}
 function saveLocalLB(e){try{localStorage.setItem(LB_KEY,JSON.stringify(e));}catch(e){}}
@@ -1373,7 +1373,7 @@ function mergeLB(a,b){
 
 async function fetchGithubLB(){
   try{
-    const r=await fetch(`https://raw.githubusercontent.com/${LB_REPO}/main/${LB_FILE}?_=${Date.now()}`);
+    const r=await fetch(`https://gist.githubusercontent.com/tharig327/${LB_GIST_ID}/raw/${LB_GIST_FILE}?_=${Date.now()}`);
     if(!r.ok)return[];return await r.json();
   }catch(e){return[];}
 }
@@ -1381,14 +1381,11 @@ async function fetchGithubLB(){
 async function pushGithubLB(entries){
   if(!GITHUB_TOKEN)return;
   try{
-    const url=`https://api.github.com/repos/${LB_REPO}/contents/${LB_FILE}`;
-    const h={'Authorization':`Bearer ${GITHUB_TOKEN}`,'Content-Type':'application/json'};
-    const fd=await(await fetch(url,{headers:h})).json();
-    await fetch(url,{method:'PUT',headers:h,body:JSON.stringify({
-      message:'Update leaderboard',
-      content:btoa(unescape(encodeURIComponent(JSON.stringify(entries,null,2)))),
-      sha:fd.sha
-    })});
+    await fetch(`https://api.github.com/gists/${LB_GIST_ID}`,{
+      method:'PATCH',
+      headers:{'Authorization':`Bearer ${GITHUB_TOKEN}`,'Content-Type':'application/json'},
+      body:JSON.stringify({files:{[LB_GIST_FILE]:{content:JSON.stringify(entries,null,2)}}})
+    });
   }catch(e){}
 }
 
