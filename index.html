@@ -113,6 +113,7 @@ canvas{width:100%;height:auto;display:block;border-radius:8px;border:2px solid #
     <button class="menu-btn" id="select-btn" style="background:linear-gradient(135deg,#e63946,#c1121f);margin-top:6px">🎨 CUSTOMIZE</button>
     <button class="menu-btn" id="scores-btn" style="background:linear-gradient(135deg,#b8860b,#7b5800);margin-top:6px">🏆 LEADERBOARD</button>
     <div style="color:#444;font-size:10px;margin-top:auto;padding-top:14px;text-align:center">A/D move · W jump · J punch · K kick · L special · ; block</div>
+    <div id="version-label-title" style="color:#333;font-size:10px;font-family:monospace;margin-top:6px;letter-spacing:1px;cursor:default;user-select:none;">v1.0.3</div>
   </div>
 
   <!-- CHARACTER + MUSIC SELECT SCREEN -->
@@ -1483,12 +1484,14 @@ document.getElementById('dev-timer-btn').onclick=function(){
   this.style.color=devTimerFrozen?'#ef4444':'#00ff41';
 };
 let _devClicks=0,_devTimer=null;
-document.getElementById('version-label').addEventListener('click',()=>{
+function _devClick(){
   _devClicks++;
   clearTimeout(_devTimer);
   _devTimer=setTimeout(()=>{_devClicks=0;},600);
   if(_devClicks>=3){_devClicks=0;buildDevPanel();showOverlay("ov-dev");}
-});
+}
+document.getElementById('version-label').addEventListener('click',_devClick);
+document.getElementById('version-label-title').addEventListener('click',_devClick);
 
 loadSettings();
 loop();
