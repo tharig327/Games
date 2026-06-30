@@ -854,6 +854,7 @@ function buildCustomizeScreen() {
     card.addEventListener('click', () => {
       selectedCharP1 = i;
       charCards.querySelectorAll('.char-card').forEach((c,j) => c.classList.toggle('selected', j===i));
+      saveSettings();
     });
     charCards.appendChild(card);
   });
@@ -870,6 +871,7 @@ function buildCustomizeScreen() {
       selectedP1 = i;
       grid.querySelectorAll('.color-swatch').forEach((s,j) => s.classList.toggle('selected', j===i));
       refreshPreviews();
+      saveSettings();
     });
     grid.appendChild(sw);
   });
@@ -885,6 +887,7 @@ function buildCustomizeScreen() {
     card.addEventListener('click', () => {
       selectedDifficulty = i;
       diffCards.querySelectorAll('.char-card').forEach((c,j) => c.classList.toggle('selected', j===i));
+      saveSettings();
     });
     diffCards.appendChild(card);
   });
@@ -899,6 +902,7 @@ function buildCustomizeScreen() {
     btn.addEventListener('click', () => {
       selectedSong = i;
       songList.querySelectorAll('.song-btn').forEach((b,j) => b.classList.toggle('selected', j===i));
+      saveSettings();
     });
     songList.appendChild(btn);
   });
@@ -1169,6 +1173,7 @@ function toggleCpu(){
   btn.style.borderColor=cpuOn?"#22c55e":"#ef4444";
   btn.style.color=cpuOn?"#22c55e":"#ef4444";
   btn.style.background=cpuOn?"#1e1e3a":"#2a1a1a";
+  saveSettings();
 }
 function toggleMusicEnabled(){
   musicEnabled=!musicEnabled;
@@ -1179,6 +1184,39 @@ function toggleMusicEnabled(){
   btn.style.background=musicEnabled?"#1e1e3a":"#2a1a1a";
   if(!musicEnabled)stopMusic();
   else if(G.gameState==="fight"&&!G.paused)startMusic(selectedSong);
+  saveSettings();
+}
+
+const SETTINGS_KEY='streetBrawlerSettings';
+function saveSettings(){
+  try{
+    localStorage.setItem(SETTINGS_KEY,JSON.stringify({
+      musicVolume,sfxVolume,musicEnabled,cpuOn,
+      selectedSong,selectedDifficulty,selectedCharP1,selectedP1
+    }));
+  }catch(e){}
+}
+function loadSettings(){
+  try{
+    const s=JSON.parse(localStorage.getItem(SETTINGS_KEY));
+    if(!s)return;
+    if(s.musicVolume!=null){musicVolume=s.musicVolume;document.getElementById('music-vol').value=Math.round(s.musicVolume*100);}
+    if(s.sfxVolume!=null){sfxVolume=s.sfxVolume;document.getElementById('sfx-vol').value=Math.round(s.sfxVolume*100);}
+    if(s.musicEnabled===false){
+      musicEnabled=false;
+      const btn=document.getElementById('music-btn');
+      btn.textContent='🎵 OFF';btn.style.borderColor='#ef4444';btn.style.color='#ef4444';btn.style.background='#2a1a1a';
+    }
+    if(s.cpuOn===false){
+      cpuOn=false;G.cpuEnabled=false;
+      const btn=document.getElementById('cpu-btn');
+      btn.textContent='CPU: OFF';btn.style.borderColor='#ef4444';btn.style.color='#ef4444';btn.style.background='#2a1a1a';
+    }
+    if(s.selectedSong!=null)selectedSong=Math.min(s.selectedSong,SONGS.length-1);
+    if(s.selectedDifficulty!=null)selectedDifficulty=Math.min(s.selectedDifficulty,DIFFICULTIES.length-1);
+    if(s.selectedCharP1!=null)selectedCharP1=Math.min(s.selectedCharP1,CHARACTERS.length-1);
+    if(s.selectedP1!=null)selectedP1=Math.min(s.selectedP1,PALETTES.length-1);
+  }catch(e){}
 }
 
 document.getElementById('menu-btn').onclick=togglePause;
@@ -1187,8 +1225,9 @@ document.getElementById('music-btn').onclick=toggleMusicEnabled;
 document.getElementById('music-vol').oninput=function(){
   musicVolume=this.value/100;
   if(masterGainNode)masterGainNode.gain.value=0.3*musicVolume;
+  saveSettings();
 };
-document.getElementById('sfx-vol').oninput=function(){sfxVolume=this.value/100;};
+document.getElementById('sfx-vol').oninput=function(){sfxVolume=this.value/100;saveSettings();};
 document.getElementById('start-btn').onclick=()=>{G.p1Wins=0;G.p2Wins=0;G.round=1;startRound();};
 document.getElementById('select-btn').onclick=()=>{buildCustomizeScreen();showOverlay("ov-select");};
 document.getElementById('select-back-btn').onclick=()=>{stopMusic();showOverlay("ov-title");};
@@ -1215,6 +1254,7 @@ document.getElementById('song-list')?.addEventListener('click',()=>{
   if(previewing){stopMusic();startMusic(selectedSong);}
 });
 
+loadSettings();
 loop();
 </script>
 </body>
