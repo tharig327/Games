@@ -62,7 +62,7 @@ canvas{width:100%;height:auto;display:block;border-radius:8px;border:2px solid #
     <button class="menu-btn" id="start-btn">▶ START GAME</button>
     <div class="info">
       ARROWS / WASD to move &amp; jump &middot; SPACE also jumps<br>
-      DOWN to enter glowing pipes &middot; X to throw fireballs (fire form)<br>
+      DOWN to enter glowing pipes to secret underworld rooms &middot; X to throw fireballs (fire form)<br>
       Stomp enemies from above &middot; grab coins &middot; reach the flag!<br>
       Koopas kick into sliding shells &middot; Spinies can't be stomped &middot; Bats swoop!<br>
       Mushroom = grow big &middot; Flower = fireballs &middot; Star = invincible!<br>
@@ -278,11 +278,16 @@ function buildLevel(def){
       platforms.push({x:c*T, y:rr*T, w:T*2, h:T, type:'pipe', isPipeTop: rr===r});
     }
   });
-  (def.warpPipes||[]).forEach(([c,r,destCol,destRow])=>{
+  (def.warpPipes||[]).forEach(w=>{
+    const [c,r] = w.enter;
     for(let rr=r; rr<groundRow; rr++){
-      platforms.push({x:c*T, y:rr*T, w:T*2, h:T, type:'pipe', isPipeTop: rr===r, warp:true});
+      platforms.push({x:c*T, y:rr*T, w:T*2, h:T, type:'pipe', isPipeTop: rr===r, warp:true, warpDir: w.toOverworld ? 'up' : 'down'});
     }
-    warps.push({x:c*T, x2:c*T+T*2, topY:r*T, destCol, destRow});
+    if(w.toUnderworld){
+      warps.push({x:c*T, x2:c*T+T*2, topY:r*T, toUnderworld:w.toUnderworld});
+    } else if(w.toOverworld){
+      warps.push({x:c*T, x2:c*T+T*2, topY:r*T, toOverworld:true, destCol:w.dest[0], destRow:w.dest[1]});
+    }
   });
   (def.coins||[]).forEach(([c,r])=>{
     coins.push({x:c*T+T/2, y:r*T+T/2, rad:9, taken:false});
@@ -302,13 +307,25 @@ function buildLevel(def){
     width: cols*T,
     height: rows*T,
     groundRow,
+    theme: def.theme || 'overworld',
     platforms, coins, enemies, warps,
     powerups: [], fireballs: [],
-    flagX: def.flagCol*T,
+    flagX: def.flagCol !== undefined ? def.flagCol*T : null,
     flagTopRow: def.flagRow,
     start: {x: def.start[0]*T, y: def.start[1]*T - 42},
     timeLimit: def.time || 100
   };
+}
+
+/* small helper to build a solid brick ceiling + end walls for underworld rooms */
+function underworldShell(width){
+  const blocks = [];
+  for(let c=0; c<width; c++){
+    blocks.push([c,0,'ceiling']);
+    blocks.push([c,1,'ceiling']);
+  }
+  for(let r=2; r<10; r++) blocks.push([width-1,r,'ceiling']);
+  return blocks;
 }
 
 const LEVELS = [
@@ -317,7 +334,7 @@ const LEVELS = [
     pits:[[34,37]],
     blocks:[[10,7,'question','mushroom'],[11,7,'brick'],[12,7,'question'],[13,7,'brick'],[22,6,'brick'],[46,6,'question','fireflower']],
     pipes:[[16,8],[42,7]],
-    warpPipes:[[7,8,39,10]],
+    warpPipes:[{enter:[7,8], toUnderworld:'uw1'}],
     coins:[[10,4],[11,4],[12,4],[13,4],[5,8],[6,8],[25,8],[26,8],[27,8],[50,8],[51,8],[52,8]],
     enemies:[[22,10,18,30],[48,10,44,55]]
   },
@@ -326,7 +343,7 @@ const LEVELS = [
     pits:[[20,22],[50,53]],
     blocks:[[10,7,'brick'],[11,7,'brick'],[30,7,'brick'],[31,6,'brick'],[32,5,'brick'],[33,5,'question','mushroom'],[42,6,'question','fireflower'],[60,6,'brick'],[61,6,'brick'],[62,6,'brick']],
     pipes:[[15,7],[45,8],[65,7]],
-    warpPipes:[[5,8,53,10]],
+    warpPipes:[{enter:[5,8], toUnderworld:'uw2'}],
     coins:[[20,7],[21,6],[30,6],[31,5],[32,4],[33,4],[55,8],[56,8],[60,4],[61,4],[62,4],[70,8],[71,8]],
     enemies:[[12,10,8,18],[38,10,34,48],[58,10,55,68],[63,10,55,68]]
   },
@@ -340,7 +357,7 @@ const LEVELS = [
       [87,6,'brick'],[87,7,'brick'],[87,8,'brick'],[87,9,'brick']
     ],
     pipes:[[8,7],[30,7],[65,7]],
-    warpPipes:[[4,8,63,10]],
+    warpPipes:[{enter:[4,8], toUnderworld:'uw3'}],
     coins:[[10,4],[25,4],[26,4],[40,8],[41,8],[45,3],[55,5],[56,4],[70,4],[71,4],[80,8],[81,8],[82,8],[15,8],[48,8]],
     enemies:[[14,10,10,17],[27,10,24,34],[39,10,38,50],[52,10,50,59],[68,10,64,74],[80,10,78,88]]
   },
@@ -352,7 +369,7 @@ const LEVELS = [
       [50,7,'brick'],[51,7,'brick'],[52,6,'brick'],[70,6,'question']
     ],
     pipes:[[20,7],[55,8]],
-    warpPipes:[[5,8,43,10]],
+    warpPipes:[{enter:[5,8], toUnderworld:'uw4'}],
     coins:[[8,4],[9,4],[25,3],[30,8],[31,8],[50,4],[51,4],[52,3],[60,8],[61,8],[70,3],[75,8],[76,8]],
     enemies:[[12,10,10,14,'goomba'],[24,10,22,38,'koopa'],[45,10,44,53,'goomba'],[60,10,58,64,'koopa'],[70,10,68,76,'goomba']]
   },
@@ -364,7 +381,7 @@ const LEVELS = [
       [60,7,'brick'],[61,6,'brick'],[62,6,'question','fireflower'],[78,6,'brick']
     ],
     pipes:[[18,7],[45,8],[65,7]],
-    warpPipes:[[6,8,58,10]],
+    warpPipes:[{enter:[6,8], toUnderworld:'uw5'}],
     coins:[[10,4],[22,3],[23,3],[35,8],[36,8],[40,3],[50,8],[51,8],[60,4],[61,3],[62,4],[75,8],[76,8],[80,4]],
     enemies:[
       [16,10,14,17,'goomba'],[26,10,24,29,'spiny'],[37,10,35,44,'koopa'],
@@ -382,7 +399,7 @@ const LEVELS = [
       [93,6,'brick'],[93,7,'brick'],[93,8,'brick'],[93,9,'brick']
     ],
     pipes:[[15,7],[40,8],[65,7]],
-    warpPipes:[[5,8,48,10]],
+    warpPipes:[{enter:[5,8], toUnderworld:'uw6'}],
     coins:[[8,4],[20,3],[21,3],[22,3],[35,4],[36,3],[37,2],[52,3],[70,3],[71,3],[86,2],[55,8],[56,8],[75,8],[76,8]],
     enemies:[
       [13,10,12,14,'goomba'],[22,10,18,26,'koopa'],[35,10,32,38,'spiny'],
@@ -390,6 +407,51 @@ const LEVELS = [
     ]
   }
 ];
+
+const UNDERWORLDS = {
+  uw1: {
+    name:'1-1 UG', width:22, time:0, start:[1,10], theme:'underworld',
+    blocks:[...underworldShell(22), [16,6,'question','mushroom'],[7,7,'brick'],[8,7,'brick']],
+    warpPipes:[{enter:[19,8], toOverworld:true, dest:[39,10]}],
+    coins:[[4,4],[5,4],[6,4],[7,4],[14,4],[15,4],[9,6],[10,6],[11,6],[12,6],[17,4],[18,4]],
+    enemies:[[12,10,9,16,'goomba']]
+  },
+  uw2: {
+    name:'1-2 UG', width:24, time:0, start:[1,10], theme:'underworld',
+    blocks:[...underworldShell(24), [8,6,'question','fireflower']],
+    warpPipes:[{enter:[21,8], toOverworld:true, dest:[53,10]}],
+    coins:[[4,4],[5,4],[6,4],[10,6],[11,6],[12,6],[13,6],[18,4],[19,4],[20,4]],
+    enemies:[[13,10,10,18,'koopa']]
+  },
+  uw3: {
+    name:'1-3 UG', width:24, time:0, start:[1,10], theme:'underworld',
+    blocks:[...underworldShell(24), [12,6,'question','star']],
+    warpPipes:[{enter:[21,8], toOverworld:true, dest:[63,10]}],
+    coins:[[4,4],[5,4],[6,4],[7,4],[13,6],[14,6],[19,4],[20,4]],
+    enemies:[[10,10,8,15,'goomba'],[17,10,15,20,'spiny']]
+  },
+  uw4: {
+    name:'1-4 UG', width:22, time:0, start:[1,10], theme:'underworld',
+    blocks:[...underworldShell(22), [15,6,'question','mushroom']],
+    warpPipes:[{enter:[19,8], toOverworld:true, dest:[43,10]}],
+    coins:[[4,4],[5,4],[6,4],[9,6],[10,6],[16,4],[17,4]],
+    enemies:[[11,10,9,17,'koopa']]
+  },
+  uw5: {
+    name:'1-5 UG', width:26, time:0, start:[1,10], theme:'underworld',
+    blocks:[...underworldShell(26), [18,6,'question','fireflower']],
+    warpPipes:[{enter:[23,8], toOverworld:true, dest:[58,10]}],
+    coins:[[4,4],[5,4],[21,4],[22,4],[23,4]],
+    enemies:[[8,10,6,12,'goomba'],[14,6,10,20,'bat']]
+  },
+  uw6: {
+    name:'1-6 UG', width:26, time:0, start:[1,10], theme:'underworld',
+    blocks:[...underworldShell(26), [13,6,'question','star'],[20,6,'question','mushroom']],
+    warpPipes:[{enter:[23,8], toOverworld:true, dest:[48,10]}],
+    coins:[[4,4],[5,4],[6,4],[7,4],[9,6],[10,6],[11,6],[21,4],[22,4]],
+    enemies:[[10,10,8,16,'spiny'],[18,10,16,22,'koopa']]
+  }
+};
 
 /* ---------------- Physics constants ---------------- */
 const GRAVITY = 2000;
@@ -414,6 +476,7 @@ let fireCooldown = 0;
 let popups = []; // {x,y,text,life}
 const FORM_HEIGHTS = {small:42, big:58, fire:58};
 let warpDest = null, warpPhase = '', warpTimer = 0, playerAlpha = 1;
+let inUnderworld = false, savedOverworldLevel = null;
 
 function rectsOverlap(a,b){
   return a.x < b.x+b.w && a.x+a.w > b.x && a.y < b.y+b.h && a.y+a.h > b.y;
@@ -432,6 +495,8 @@ function loadLevel(idx, carryForm){
   camX = 0;
   timeLeft = level.timeLimit;
   playerAlpha = 1;
+  inUnderworld = false;
+  savedOverworldLevel = null;
 }
 
 function startGame(){
@@ -642,7 +707,7 @@ function updateActionButton(){
   if(!btn) return;
   if(state !== 'playing'){ btn.style.display = 'none'; return; }
   const wz = findWarpUnderPlayer();
-  if(wz){ btn.style.display = 'flex'; btn.textContent = '⬇'; btn.dataset.mode = 'warp'; }
+  if(wz){ btn.style.display = 'flex'; btn.textContent = wz.toOverworld ? '⬆' : '⬇'; btn.dataset.mode = 'warp'; }
   else if(player.form === 'fire'){ btn.style.display = 'flex'; btn.textContent = '🔥'; btn.dataset.mode = 'fire'; }
   else { btn.style.display = 'none'; }
 }
@@ -906,7 +971,7 @@ function updatePlayer(dt){
   }
 
   // flag
-  if(player.x + player.w/2 >= level.flagX){
+  if(level.flagX !== null && player.x + player.w/2 >= level.flagX){
     completeLevel();
     return;
   }
@@ -937,8 +1002,19 @@ function update(dt){
     if(warpPhase === 'down'){
       playerAlpha = Math.max(0, warpTimer/0.35);
       if(warpTimer <= 0){
-        player.x = warpDest.destCol*T;
-        player.y = warpDest.destRow*T - player.h;
+        if(warpDest.toUnderworld){
+          savedOverworldLevel = level;
+          level = buildLevel(UNDERWORLDS[warpDest.toUnderworld]);
+          inUnderworld = true;
+          player.x = level.start.x;
+          player.y = level.groundRow*T - player.h;
+        } else if(warpDest.toOverworld){
+          level = savedOverworldLevel;
+          savedOverworldLevel = null;
+          inUnderworld = false;
+          player.x = warpDest.destCol*T;
+          player.y = warpDest.destRow*T - player.h;
+        }
         player.vx = 0; player.vy = 0; player.onGround = true;
         updateCamera();
         warpPhase = 'up';
@@ -969,6 +1045,14 @@ function updateHUD(){
 
 /* ---------------- Rendering ---------------- */
 function drawBackground(){
+  if(level && level.theme === 'underworld'){
+    const g = ctx.createLinearGradient(0,0,0,canvas.height);
+    g.addColorStop(0,'#0d0d18');
+    g.addColorStop(1,'#1c1424');
+    ctx.fillStyle = g;
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+    return;
+  }
   const g = ctx.createLinearGradient(0,0,0,canvas.height);
   g.addColorStop(0,'#5c94fc');
   g.addColorStop(1,'#a8d0ff');
@@ -1004,12 +1088,24 @@ function drawPlatform(p){
   const x = p.x - camX, y = p.y;
   if(x+p.w < 0 || x > canvas.width) return;
   if(p.type === 'ground'){
-    ctx.fillStyle = '#c46a2e';
+    if(level.theme === 'underworld'){
+      ctx.fillStyle = '#4a3b52';
+      ctx.fillRect(x,y,p.w,p.h);
+      ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+      ctx.strokeRect(x+1,y+1,p.w-2,Math.min(p.h-2,T-2));
+    } else {
+      ctx.fillStyle = '#c46a2e';
+      ctx.fillRect(x,y,p.w,p.h);
+      ctx.fillStyle = '#3fae3f';
+      ctx.fillRect(x,y,p.w,8);
+      ctx.strokeStyle = 'rgba(0,0,0,0.15)';
+      ctx.strokeRect(x+1,y+1,p.w-2,Math.min(p.h-2,T-2));
+    }
+  } else if(p.type === 'ceiling'){
+    ctx.fillStyle = '#3a2a42';
     ctx.fillRect(x,y,p.w,p.h);
-    ctx.fillStyle = '#3fae3f';
-    ctx.fillRect(x,y,p.w,8);
-    ctx.strokeStyle = 'rgba(0,0,0,0.15)';
-    ctx.strokeRect(x+1,y+1,p.w-2,Math.min(p.h-2,T-2));
+    ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+    ctx.strokeRect(x+2,y+2,p.w-4,p.h-4);
   } else if(p.type === 'brick'){
     ctx.fillStyle = '#b5651d';
     ctx.fillRect(x,y,p.w,p.h);
@@ -1044,7 +1140,7 @@ function drawPlatform(p){
         ctx.fillStyle = '#fff';
         ctx.font = 'bold 14px monospace';
         ctx.textAlign = 'center';
-        ctx.fillText('⬇', x+p.w/2, y-8+bob);
+        ctx.fillText(p.warpDir === 'up' ? '⬆' : '⬇', x+p.w/2, y-8+bob);
       }
     }
   }
@@ -1281,6 +1377,7 @@ function drawFireball(fb){
 }
 
 function drawFlag(){
+  if(level.flagX === null) return;
   const x = level.flagX - camX;
   const topY = level.flagTopRow*T;
   const botY = level.groundRow*T;
