@@ -289,7 +289,65 @@ function toggleMusic(){
   ensureAudio();
   initMusicGain();
   if(musicGain) musicGain.gain.value = (musicEnabled && state !== 'paused') ? 0.16 : 0;
-  if(musicEnabled && !musicRunning && state === 'playing') startMusic();
+  if(currentTrackEl){
+    currentTrackEl.volume = musicEnabled ? 0.4 : 0;
+    if(musicEnabled && state !== 'paused') currentTrackEl.play().catch(()=>{});
+    else if(!musicEnabled) currentTrackEl.pause();
+  }
+  if(musicEnabled && !musicRunning && !currentTrackEl && state === 'playing') startMusic();
+}
+
+/* ---------------- Per-level music tracks (real audio files) ---------------- */
+const MUSIC_TRACKS = {
+  overworld: 'music/overworld.mp3',
+  underground: 'music/underground.mp3',
+  underwater: 'music/underwater.mp3',
+  desert: 'music/desert.mp3',
+  ice: 'music/ice.mp3'
+};
+// world 1-1..1-5 get a themed track; 1-6 falls back to the procedural chiptune
+const LEVEL_TRACK_BY_IDX = ['overworld','underground','underwater','desert','ice'];
+const trackAudioCache = {};
+let currentTrackKey = null, currentTrackEl = null;
+
+function getTrackEl(key){
+  if(!trackAudioCache[key]){
+    const el = new Audio(MUSIC_TRACKS[key]);
+    el.loop = true;
+    el.preload = 'auto';
+    trackAudioCache[key] = el;
+  }
+  return trackAudioCache[key];
+}
+function playTrack(key){
+  if(currentTrackKey === key && currentTrackEl && !currentTrackEl.paused) return;
+  stopTrack();
+  currentTrackKey = key;
+  currentTrackEl = getTrackEl(key);
+  try{ currentTrackEl.currentTime = 0; }catch(e){}
+  currentTrackEl.volume = musicEnabled ? 0.4 : 0;
+  if(musicEnabled) currentTrackEl.play().catch(()=>{});
+}
+function stopTrack(){
+  if(currentTrackEl) currentTrackEl.pause();
+  currentTrackEl = null;
+  currentTrackKey = null;
+}
+function trackKeyForContext(){
+  if(inUnderworld) return 'underground';
+  if(customPlayMode) return 'overworld';
+  return LEVEL_TRACK_BY_IDX[currentLevelIdx] || null;
+}
+function playMusicForContext(){
+  if(player && player.starTimer > 0) return; // let the star theme keep playing through transitions
+  const key = trackKeyForContext();
+  if(key){
+    stopMusic();
+    playTrack(key);
+  } else {
+    stopTrack();
+    startMusic();
+  }
 }
 
 /* ---------------- Level building ---------------- */
@@ -532,6 +590,7 @@ function loadLevel(idx, carryForm){
   inUnderworld = false;
   savedOverworldLevel = null;
   setMusicMode('normal');
+  playMusicForContext();
 }
 
 function startGame(){
@@ -541,7 +600,6 @@ function startGame(){
   loadLevel(0);
   state = 'playing';
   setOverlay(null);
-  startMusic();
 }
 
 function normalizeCustomLevel(def){
@@ -571,7 +629,6 @@ function startCustomLevel(rawDef){
   loadLevel(0);
   state = 'playing';
   setOverlay(null);
-  startMusic();
 }
 
 function restartAfterEnd(){
@@ -691,7 +748,9 @@ function collectPowerup(item){
     setPlayerForm('fire');
   } else if(item.type === 'star'){
     player.starTimer = 9;
+    if(currentTrackEl) stopTrack();
     setMusicMode('star');
+    startMusic();
   }
   sfx.powerup();
 }
@@ -728,6 +787,7 @@ function finishDying(){
   if(lives <= 0){
     state = 'gameOver';
     stopMusic();
+    stopTrack();
     sfx.gameOver();
     updateHighScore();
     document.getElementById('go-score').textContent = 'SCORE ' + score;
@@ -754,6 +814,7 @@ function nextLevelOrWin(){
   if(currentLevelIdx >= activeLevels.length){
     state = 'win';
     stopMusic();
+    stopTrack();
     sfx.levelComplete();
     updateHighScore();
     document.getElementById('win-score').textContent = 'SCORE ' + score;
@@ -830,9 +891,11 @@ function togglePause(){
   if(state === 'playing'){
     state = 'paused'; setOverlay('ov-pause');
     if(musicGain) musicGain.gain.value = 0;
+    if(currentTrackEl) currentTrackEl.pause();
   } else if(state === 'paused'){
     state = 'playing'; setOverlay(null);
     if(musicGain) musicGain.gain.value = musicEnabled ? 0.16 : 0;
+    if(currentTrackEl && musicEnabled) currentTrackEl.play().catch(()=>{});
   }
 }
 
@@ -842,7 +905,7 @@ document.getElementById('mylevels-btn').addEventListener('click', ()=>{ ensureAu
 document.getElementById('mylevels-back-btn').addEventListener('click', ()=>{ setOverlay('ov-title'); });
 document.getElementById('resume-btn').addEventListener('click', togglePause);
 document.getElementById('restart-level-btn').addEventListener('click', ()=>{ loadLevel(currentLevelIdx); state='playing'; setOverlay(null); if(musicGain) musicGain.gain.value = musicEnabled ? 0.16 : 0; });
-document.getElementById('quit-btn').addEventListener('click', ()=>{ activeLevels = LEVELS; customPlayMode = false; state='title'; setOverlay('ov-title'); refreshHighScoreLine(); stopMusic(); });
+document.getElementById('quit-btn').addEventListener('click', ()=>{ activeLevels = LEVELS; customPlayMode = false; state='title'; setOverlay('ov-title'); refreshHighScoreLine(); stopMusic(); stopTrack(); });
 document.getElementById('retry-btn').addEventListener('click', restartAfterEnd);
 document.getElementById('playagain-btn').addEventListener('click', restartAfterEnd);
 document.getElementById('pause-btn').addEventListener('click', togglePause);
@@ -869,7 +932,11 @@ function updatePlayer(dt){
   if(player.hurtInvuln > 0) player.hurtInvuln -= dt;
   if(player.starTimer > 0){
     player.starTimer -= dt;
-    if(player.starTimer <= 0) setMusicMode('normal');
+    if(player.starTimer <= 0){
+      setMusicMode('normal');
+      stopMusic();
+      playMusicForContext();
+    }
   }
   if(fireCooldown > 0) fireCooldown -= dt;
 
@@ -1147,6 +1214,7 @@ function update(dt){
         }
         player.vx = 0; player.vy = 0; player.onGround = true;
         updateCamera();
+        playMusicForContext();
         warpPhase = 'up';
         warpTimer = 0.35;
         sfx.warpUp();
