@@ -33,6 +33,7 @@ canvas{width:100%;height:auto;display:block;border-radius:8px;border:2px solid #
 #jump-btn{width:74px;height:74px;border-radius:50%;background:rgba(230,57,70,0.3);border:2px solid rgba(255,255,255,0.35);}
 #jump-btn:active{background:rgba(230,57,70,0.55);}
 .pause-btn-fixed{position:absolute;top:8px;right:8px;z-index:15;background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.3);color:#fff;border-radius:6px;padding:6px 10px;font-family:monospace;font-size:12px;cursor:pointer;}
+.music-btn-fixed{position:absolute;top:8px;left:8px;z-index:15;background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.3);color:#fff;border-radius:6px;padding:6px 10px;font-family:monospace;font-size:12px;cursor:pointer;}
 @media (min-width:640px){
   #controls{display:none;}
 }
@@ -51,6 +52,7 @@ canvas{width:100%;height:auto;display:block;border-radius:8px;border:2px solid #
 <div id="canvas-wrap">
   <canvas id="canvas" width="800" height="480"></canvas>
   <button class="pause-btn-fixed" id="pause-btn">⏸ PAUSE</button>
+  <button class="music-btn-fixed" id="music-btn">🎵 ON</button>
 
   <div class="overlay" id="ov-title">
     <div class="title-big">PLUMBER BROS</div>
@@ -139,6 +141,111 @@ const sfx = {
   levelComplete(){ [523,659,784,1047].forEach((f,i)=>tone(f,0.18,'square',0.12,i*0.15)); },
   gameOver(){ [392,349,330,262].forEach((f,i)=>tone(f,0.28,'sawtooth',0.13,i*0.22)); }
 };
+
+/* ---------------- Background music (procedural chiptune) ---------------- */
+const NOTE = {
+  C3:130.81,D3:146.83,E3:164.81,F3:174.61,G3:196.00,A3:220.00,B3:246.94,
+  C4:261.63,D4:293.66,E4:329.63,F4:349.23,G4:392.00,A4:440.00,B4:493.88,
+  C5:523.25,D5:587.33,E5:659.25,F5:698.46,G5:783.99,A5:880.00,B5:987.77,
+  C6:1046.50
+};
+const MUSIC_BPM = 148;
+const STEP_DUR = 60/MUSIC_BPM/4; // one 16th note
+// 4 bars x 16 steps = 64 steps. Chords: C  ->  G  ->  Am  ->  F
+const BASS_PATTERN = [];
+const MELODY_PATTERN = [];
+const BASS_BARS = [ ['C3','G3'], ['G3','D4'], ['A3','E4'], ['F3','C4'] ];
+const MELODY_BARS = [
+  ['E4','G4','E4','C4','D4','E4','G4','E4'],
+  ['G4','B4','D5','B4','A4','G4','F4','G4'],
+  ['A4','C5','E5','C5','B4','A4','G4','A4'],
+  ['F4','A4','C5','A4','G4','F4','E4','D4']
+];
+for(let bar=0; bar<4; bar++){
+  const [root,fifth] = BASS_BARS[bar];
+  const bassBar = new Array(16).fill(null);
+  bassBar[0]=NOTE[root]; bassBar[4]=NOTE[fifth]; bassBar[8]=NOTE[root]; bassBar[12]=NOTE[fifth];
+  BASS_PATTERN.push(...bassBar);
+  const melBar = new Array(16).fill(null);
+  MELODY_BARS[bar].forEach((n,i)=>{ melBar[i*2] = NOTE[n]; });
+  MELODY_PATTERN.push(...melBar);
+}
+
+let musicGain = null, musicEnabled = true, musicRunning = false;
+let musicTimerId = null, musicStep = 0, nextNoteTime = 0;
+
+function initMusicGain(){
+  if(!audioCtx) return;
+  if(!musicGain){
+    musicGain = audioCtx.createGain();
+    musicGain.gain.value = musicEnabled ? 0.16 : 0;
+    musicGain.connect(audioCtx.destination);
+  }
+}
+function musicNote(freq, time, dur, type, vol){
+  const osc = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, time);
+  g.gain.setValueAtTime(0.0001, time);
+  g.gain.linearRampToValueAtTime(vol, time+0.012);
+  g.gain.exponentialRampToValueAtTime(0.0001, time+dur);
+  osc.connect(g).connect(musicGain);
+  osc.start(time);
+  osc.stop(time+dur+0.03);
+}
+function musicHat(time){
+  const bufSize = Math.floor(audioCtx.sampleRate*0.03);
+  const buf = audioCtx.createBuffer(1, bufSize, audioCtx.sampleRate);
+  const data = buf.getChannelData(0);
+  for(let i=0;i<bufSize;i++) data[i] = (Math.random()*2-1) * (1 - i/bufSize);
+  const src = audioCtx.createBufferSource();
+  src.buffer = buf;
+  const filt = audioCtx.createBiquadFilter();
+  filt.type = 'highpass';
+  filt.frequency.value = 7000;
+  const g = audioCtx.createGain();
+  g.gain.setValueAtTime(0.045, time);
+  g.gain.exponentialRampToValueAtTime(0.0001, time+0.03);
+  src.connect(filt).connect(g).connect(musicGain);
+  src.start(time);
+  src.stop(time+0.04);
+}
+function musicScheduler(){
+  while(nextNoteTime < audioCtx.currentTime + 0.12){
+    const step = musicStep % 64;
+    const bf = BASS_PATTERN[step];
+    if(bf) musicNote(bf, nextNoteTime, STEP_DUR*3.4, 'triangle', 0.24);
+    const mf = MELODY_PATTERN[step];
+    if(mf) musicNote(mf, nextNoteTime, STEP_DUR*1.6, 'square', 0.13);
+    if(step % 4 === 0) musicHat(nextNoteTime);
+    nextNoteTime += STEP_DUR;
+    musicStep++;
+  }
+  musicTimerId = setTimeout(musicScheduler, 25);
+}
+function startMusic(){
+  if(!audioCtx || musicRunning) return;
+  initMusicGain();
+  musicRunning = true;
+  musicStep = 0;
+  nextNoteTime = audioCtx.currentTime + 0.05;
+  musicScheduler();
+}
+function stopMusic(){
+  musicRunning = false;
+  if(musicTimerId) clearTimeout(musicTimerId);
+  musicTimerId = null;
+}
+function toggleMusic(){
+  musicEnabled = !musicEnabled;
+  const btn = document.getElementById('music-btn');
+  if(btn) btn.textContent = musicEnabled ? '🎵 ON' : '🔇 OFF';
+  ensureAudio();
+  initMusicGain();
+  if(musicGain) musicGain.gain.value = (musicEnabled && state !== 'paused') ? 0.16 : 0;
+  if(musicEnabled && !musicRunning && state === 'playing') startMusic();
+}
 
 /* ---------------- Level building ---------------- */
 function buildLevel(def){
@@ -253,6 +360,7 @@ function startGame(){
   loadLevel(0);
   state = 'playing';
   setOverlay(null);
+  startMusic();
 }
 
 function die(){
@@ -268,6 +376,7 @@ function finishDying(){
   lives--;
   if(lives <= 0){
     state = 'gameOver';
+    stopMusic();
     sfx.gameOver();
     updateHighScore();
     document.getElementById('go-score').textContent = 'SCORE ' + score;
@@ -293,6 +402,7 @@ function nextLevelOrWin(){
   currentLevelIdx++;
   if(currentLevelIdx >= LEVELS.length){
     state = 'win';
+    stopMusic();
     sfx.levelComplete();
     updateHighScore();
     document.getElementById('win-score').textContent = 'SCORE ' + score;
@@ -346,17 +456,23 @@ bindHold(document.getElementById('right-btn'), ()=>keys.right=true, ()=>keys.rig
 bindHold(document.getElementById('jump-btn'), ()=>{keys.jump=true;}, ()=>keys.jump=false);
 
 function togglePause(){
-  if(state === 'playing'){ state = 'paused'; setOverlay('ov-pause'); }
-  else if(state === 'paused'){ state = 'playing'; setOverlay(null); }
+  if(state === 'playing'){
+    state = 'paused'; setOverlay('ov-pause');
+    if(musicGain) musicGain.gain.value = 0;
+  } else if(state === 'paused'){
+    state = 'playing'; setOverlay(null);
+    if(musicGain) musicGain.gain.value = musicEnabled ? 0.16 : 0;
+  }
 }
 
 document.getElementById('start-btn').addEventListener('click', ()=>{ ensureAudio(); startGame(); });
 document.getElementById('resume-btn').addEventListener('click', togglePause);
-document.getElementById('restart-level-btn').addEventListener('click', ()=>{ loadLevel(currentLevelIdx); state='playing'; setOverlay(null); });
-document.getElementById('quit-btn').addEventListener('click', ()=>{ state='title'; setOverlay('ov-title'); refreshHighScoreLine(); });
+document.getElementById('restart-level-btn').addEventListener('click', ()=>{ loadLevel(currentLevelIdx); state='playing'; setOverlay(null); if(musicGain) musicGain.gain.value = musicEnabled ? 0.16 : 0; });
+document.getElementById('quit-btn').addEventListener('click', ()=>{ state='title'; setOverlay('ov-title'); refreshHighScoreLine(); stopMusic(); });
 document.getElementById('retry-btn').addEventListener('click', startGame);
 document.getElementById('playagain-btn').addEventListener('click', startGame);
 document.getElementById('pause-btn').addEventListener('click', togglePause);
+document.getElementById('music-btn').addEventListener('click', toggleMusic);
 
 function refreshHighScoreLine(){
   const hs = getHighScore();
