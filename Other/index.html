@@ -13,9 +13,9 @@ body{background:#0a0a1a;display:flex;flex-direction:column;align-items:center;
 #hud .stat{display:flex;flex-direction:column;align-items:center;min-width:56px;}
 #hud .stat .lbl{font-size:9px;color:#7fa8ff;letter-spacing:1px;margin-bottom:2px;}
 #hud .stat .val{font-size:15px;color:#ffd700;text-shadow:0 0 8px rgba(255,215,0,0.5);}
-#canvas-wrap{position:relative;width:100%;max-width:800px;}
+#canvas-wrap{position:relative;width:100%;max-width:800px;min-height:480px;}
 canvas{width:100%;height:auto;display:block;border-radius:8px;border:2px solid #3b6ee6;box-shadow:0 0 30px rgba(59,110,230,0.35);background:#5c94fc;}
-.overlay{position:absolute;inset:0;background:rgba(4,6,20,0.92);display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:8px;z-index:10;padding:16px;text-align:center;}
+.overlay{position:absolute;inset:0;background:rgba(4,6,20,0.92);display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:8px;z-index:10;padding:16px;text-align:center;overflow-y:auto;}
 .overlay.hidden{display:none;}
 .title-big{font-size:clamp(22px,5vw,38px);font-weight:bold;color:#ffd700;text-shadow:3px 3px 0 #e63946,6px 6px 0 rgba(0,0,0,0.4);letter-spacing:2px;margin-bottom:4px;}
 .title-sub{color:#7fa8ff;font-size:12px;margin-bottom:18px;letter-spacing:1px;}
