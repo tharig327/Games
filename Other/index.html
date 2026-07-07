@@ -60,6 +60,10 @@ canvas{width:100%;height:auto;display:block;border-radius:8px;border:2px solid #
     <div class="title-big">PLUMBER BROS</div>
     <div class="title-sub">a browser platform adventure</div>
     <button class="menu-btn" id="start-btn">▶ START GAME</button>
+    <div style="display:flex;gap:8px;margin-top:6px;">
+      <button class="menu-btn alt" id="mylevels-btn" style="margin-top:0;padding:10px 18px;font-size:12px;">📋 MY LEVELS</button>
+      <button class="menu-btn alt" id="editor-btn" style="margin-top:0;padding:10px 18px;font-size:12px;background:linear-gradient(135deg,#7b5800,#4a3600);">🛠 LEVEL EDITOR</button>
+    </div>
     <div class="info">
       ARROWS / WASD to move &amp; jump &middot; SPACE also jumps<br>
       DOWN to enter glowing pipes to secret underworld rooms &middot; X to throw fireballs (fire form)<br>
@@ -68,6 +72,12 @@ canvas{width:100%;height:auto;display:block;border-radius:8px;border:2px solid #
       Mushroom = grow big &middot; Flower = fireballs &middot; Star = invincible!<br>
       <span id="high-score-line" style="color:#ffd700"></span>
     </div>
+  </div>
+
+  <div class="overlay hidden" id="ov-mylevels">
+    <div class="big-msg">MY LEVELS</div>
+    <div id="mylevels-list" style="width:100%;max-width:480px;display:flex;flex-direction:column;gap:8px;overflow-y:auto;max-height:320px;margin:8px 0;"></div>
+    <button class="menu-btn alt" id="mylevels-back-btn">⏹ BACK</button>
   </div>
 
   <div class="overlay hidden" id="ov-pause">
@@ -500,6 +510,7 @@ let popups = []; // {x,y,text,life}
 const FORM_HEIGHTS = {small:42, big:58, fire:58};
 let warpDest = null, warpPhase = '', warpTimer = 0, playerAlpha = 1;
 let inUnderworld = false, savedOverworldLevel = null;
+let activeLevels = LEVELS, customPlayMode = false;
 
 function rectsOverlap(a,b){
   return a.x < b.x+b.w && a.x+a.w > b.x && a.y < b.y+b.h && a.y+a.h > b.y;
@@ -512,7 +523,7 @@ function circleRectOverlap(c,r){
 }
 
 function loadLevel(idx, carryForm){
-  level = buildLevel(LEVELS[idx]);
+  level = buildLevel(activeLevels[idx]);
   player = {x:level.start.x, y:level.start.y, w:30, h:42, vx:0, vy:0, onGround:false, facing:1, alive:true, form:'small', starTimer:0, hurtInvuln:0};
   if(carryForm && carryForm !== 'small') setPlayerForm(carryForm);
   camX = 0;
@@ -524,11 +535,89 @@ function loadLevel(idx, carryForm){
 }
 
 function startGame(){
+  activeLevels = LEVELS;
+  customPlayMode = false;
   score = 0; lives = 3; coinsCollected = 0; currentLevelIdx = 0;
   loadLevel(0);
   state = 'playing';
   setOverlay(null);
   startMusic();
+}
+
+function normalizeCustomLevel(def){
+  const width = Math.max(12, Math.min(200, Math.floor(Number(def.width)) || 40));
+  const start = Array.isArray(def.start) && def.start.length === 2 ? def.start : [2,10];
+  const flagCol = Math.max(start[0]+3, Math.min(width-2, Math.floor(Number(def.flagCol)) || width-3));
+  return {
+    name: ((def.name||'Custom').toString().slice(0,20)) || 'Custom',
+    width,
+    time: Math.max(30, Math.min(999, Math.floor(Number(def.time)) || 100)),
+    start,
+    flagCol,
+    flagRow: Number.isFinite(def.flagRow) ? def.flagRow : 3,
+    pits: Array.isArray(def.pits) ? def.pits : [],
+    blocks: Array.isArray(def.blocks) ? def.blocks : [],
+    pipes: Array.isArray(def.pipes) ? def.pipes : [],
+    warpPipes: [],
+    coins: Array.isArray(def.coins) ? def.coins : [],
+    enemies: Array.isArray(def.enemies) ? def.enemies : []
+  };
+}
+
+function startCustomLevel(rawDef){
+  activeLevels = [normalizeCustomLevel(rawDef)];
+  customPlayMode = true;
+  score = 0; lives = 3; coinsCollected = 0; currentLevelIdx = 0;
+  loadLevel(0);
+  state = 'playing';
+  setOverlay(null);
+  startMusic();
+}
+
+function restartAfterEnd(){
+  if(customPlayMode) startCustomLevel(activeLevels[0]);
+  else startGame();
+}
+
+function getCustomLevels(){
+  try { return JSON.parse(localStorage.getItem('plumberBrosCustomLevels') || '[]'); }
+  catch(e){ return []; }
+}
+function deleteCustomLevel(id){
+  const levels = getCustomLevels().filter(l=>l.id !== id);
+  localStorage.setItem('plumberBrosCustomLevels', JSON.stringify(levels));
+}
+function renderMyLevelsList(){
+  const container = document.getElementById('mylevels-list');
+  if(!container) return;
+  container.innerHTML = '';
+  const levels = getCustomLevels();
+  if(levels.length === 0){
+    const p = document.createElement('div');
+    p.style.cssText = 'color:#7fa8ff;font-size:12px;padding:12px;';
+    p.textContent = 'No custom levels yet — open the Level Editor to make one!';
+    container.appendChild(p);
+    return;
+  }
+  levels.forEach(lv=>{
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:8px;background:#151a2e;border:1px solid #2a3352;border-radius:8px;padding:8px 12px;';
+    const name = document.createElement('div');
+    name.style.cssText = 'flex:1;text-align:left;color:#fff;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+    name.textContent = lv.name;
+    const playBtn = document.createElement('button');
+    playBtn.className = 'menu-btn';
+    playBtn.style.cssText = 'margin:0;padding:8px 16px;min-width:0;font-size:11px;';
+    playBtn.textContent = '▶ PLAY';
+    playBtn.addEventListener('click', ()=>{ ensureAudio(); startCustomLevel(lv.def); });
+    const delBtn = document.createElement('button');
+    delBtn.className = 'menu-btn alt';
+    delBtn.style.cssText = 'margin:0;padding:8px 12px;min-width:0;font-size:11px;';
+    delBtn.textContent = '✕';
+    delBtn.addEventListener('click', ()=>{ deleteCustomLevel(lv.id); renderMyLevelsList(); });
+    row.appendChild(name); row.appendChild(playBtn); row.appendChild(delBtn);
+    container.appendChild(row);
+  });
 }
 
 function setPlayerForm(newForm){
@@ -662,7 +751,7 @@ function completeLevel(){
 
 function nextLevelOrWin(){
   currentLevelIdx++;
-  if(currentLevelIdx >= LEVELS.length){
+  if(currentLevelIdx >= activeLevels.length){
     state = 'win';
     stopMusic();
     sfx.levelComplete();
@@ -748,11 +837,14 @@ function togglePause(){
 }
 
 document.getElementById('start-btn').addEventListener('click', ()=>{ ensureAudio(); startGame(); });
+document.getElementById('editor-btn').addEventListener('click', ()=>{ window.location.href = 'editor.html'; });
+document.getElementById('mylevels-btn').addEventListener('click', ()=>{ ensureAudio(); renderMyLevelsList(); setOverlay('ov-mylevels'); });
+document.getElementById('mylevels-back-btn').addEventListener('click', ()=>{ setOverlay('ov-title'); });
 document.getElementById('resume-btn').addEventListener('click', togglePause);
 document.getElementById('restart-level-btn').addEventListener('click', ()=>{ loadLevel(currentLevelIdx); state='playing'; setOverlay(null); if(musicGain) musicGain.gain.value = musicEnabled ? 0.16 : 0; });
-document.getElementById('quit-btn').addEventListener('click', ()=>{ state='title'; setOverlay('ov-title'); refreshHighScoreLine(); stopMusic(); });
-document.getElementById('retry-btn').addEventListener('click', startGame);
-document.getElementById('playagain-btn').addEventListener('click', startGame);
+document.getElementById('quit-btn').addEventListener('click', ()=>{ activeLevels = LEVELS; customPlayMode = false; state='title'; setOverlay('ov-title'); refreshHighScoreLine(); stopMusic(); });
+document.getElementById('retry-btn').addEventListener('click', restartAfterEnd);
+document.getElementById('playagain-btn').addEventListener('click', restartAfterEnd);
 document.getElementById('pause-btn').addEventListener('click', togglePause);
 document.getElementById('music-btn').addEventListener('click', toggleMusic);
 
@@ -761,6 +853,16 @@ function refreshHighScoreLine(){
   document.getElementById('high-score-line').textContent = hs > 0 ? ('HIGH SCORE: ' + hs) : '';
 }
 refreshHighScoreLine();
+
+(function checkPlaytest(){
+  const raw = localStorage.getItem('plumberBrosPlaytest');
+  if(!raw) return;
+  localStorage.removeItem('plumberBrosPlaytest');
+  try{
+    const def = JSON.parse(raw);
+    startCustomLevel(def);
+  }catch(e){ /* malformed playtest payload, ignore and stay on title */ }
+})();
 
 /* ---------------- Update ---------------- */
 function updatePlayer(dt){
