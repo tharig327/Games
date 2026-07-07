@@ -183,8 +183,27 @@ for(let bar=0; bar<4; bar++){
   MELODY_PATTERN.push(...melBar);
 }
 
+// faster, frantic "star power" theme, swapped in for the duration of invincibility
+const STAR_BPM = 210;
+const STAR_STEP_DUR = 60/STAR_BPM/4;
+const STAR_BASS_PATTERN = [];
+const STAR_MELODY_PATTERN = [];
+const STAR_RUN = ['C5','D5','E5','G5','C6','G5','E5','D5','C5','D5','E5','G5','C6','G5','E5','D5'];
+for(let bar=0; bar<2; bar++){
+  const bassBar = new Array(16).fill(null);
+  bassBar[0]=NOTE.C3; bassBar[4]=NOTE.G3; bassBar[8]=NOTE.C3; bassBar[12]=NOTE.G3;
+  STAR_BASS_PATTERN.push(...bassBar);
+  STAR_MELODY_PATTERN.push(...STAR_RUN.map(n=>NOTE[n]));
+}
+
 let musicGain = null, musicEnabled = true, musicRunning = false;
 let musicTimerId = null, musicStep = 0, nextNoteTime = 0;
+let musicMode = 'normal'; // 'normal' | 'star'
+function setMusicMode(mode){
+  if(musicMode === mode) return;
+  musicMode = mode;
+  musicStep = 0;
+}
 
 function initMusicGain(){
   if(!audioCtx) return;
@@ -225,13 +244,17 @@ function musicHat(time){
 }
 function musicScheduler(){
   while(nextNoteTime < audioCtx.currentTime + 0.12){
-    const step = musicStep % 64;
-    const bf = BASS_PATTERN[step];
-    if(bf) musicNote(bf, nextNoteTime, STEP_DUR*3.4, 'triangle', 0.24);
-    const mf = MELODY_PATTERN[step];
-    if(mf) musicNote(mf, nextNoteTime, STEP_DUR*1.6, 'square', 0.13);
+    const isStar = musicMode === 'star';
+    const stepDur = isStar ? STAR_STEP_DUR : STEP_DUR;
+    const bassPat = isStar ? STAR_BASS_PATTERN : BASS_PATTERN;
+    const melPat = isStar ? STAR_MELODY_PATTERN : MELODY_PATTERN;
+    const step = musicStep % bassPat.length;
+    const bf = bassPat[step];
+    if(bf) musicNote(bf, nextNoteTime, stepDur*3.4, 'triangle', isStar ? 0.2 : 0.24);
+    const mf = melPat[step];
+    if(mf) musicNote(mf, nextNoteTime, isStar ? stepDur*0.85 : stepDur*1.6, isStar ? 'sawtooth' : 'square', isStar ? 0.15 : 0.13);
     if(step % 4 === 0) musicHat(nextNoteTime);
-    nextNoteTime += STEP_DUR;
+    nextNoteTime += stepDur;
     musicStep++;
   }
   musicTimerId = setTimeout(musicScheduler, 25);
@@ -497,6 +520,7 @@ function loadLevel(idx, carryForm){
   playerAlpha = 1;
   inUnderworld = false;
   savedOverworldLevel = null;
+  setMusicMode('normal');
 }
 
 function startGame(){
@@ -578,6 +602,7 @@ function collectPowerup(item){
     setPlayerForm('fire');
   } else if(item.type === 'star'){
     player.starTimer = 9;
+    setMusicMode('star');
   }
   sfx.powerup();
 }
@@ -740,7 +765,10 @@ refreshHighScoreLine();
 /* ---------------- Update ---------------- */
 function updatePlayer(dt){
   if(player.hurtInvuln > 0) player.hurtInvuln -= dt;
-  if(player.starTimer > 0) player.starTimer -= dt;
+  if(player.starTimer > 0){
+    player.starTimer -= dt;
+    if(player.starTimer <= 0) setMusicMode('normal');
+  }
   if(fireCooldown > 0) fireCooldown -= dt;
 
   const downPressed = keys.down && !downHeld;
