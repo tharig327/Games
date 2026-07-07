@@ -32,6 +32,8 @@ canvas{width:100%;height:auto;display:block;border-radius:8px;border:2px solid #
 .touch-btn:active{background:rgba(59,110,230,0.5);}
 #jump-btn{width:74px;height:74px;border-radius:50%;background:rgba(230,57,70,0.3);border:2px solid rgba(255,255,255,0.35);}
 #jump-btn:active{background:rgba(230,57,70,0.55);}
+#action-btn{width:56px;height:56px;border-radius:50%;background:rgba(255,180,0,0.3);border:2px solid rgba(255,255,255,0.35);align-self:flex-end;}
+#action-btn:active{background:rgba(255,180,0,0.55);}
 .pause-btn-fixed{position:absolute;top:8px;right:8px;z-index:15;background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.3);color:#fff;border-radius:6px;padding:6px 10px;font-family:monospace;font-size:12px;cursor:pointer;}
 .music-btn-fixed{position:absolute;top:8px;left:8px;z-index:15;background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.3);color:#fff;border-radius:6px;padding:6px 10px;font-family:monospace;font-size:12px;cursor:pointer;}
 @media (min-width:640px){
@@ -60,7 +62,9 @@ canvas{width:100%;height:auto;display:block;border-radius:8px;border:2px solid #
     <button class="menu-btn" id="start-btn">▶ START GAME</button>
     <div class="info">
       ARROWS / WASD to move &amp; jump &middot; SPACE also jumps<br>
+      DOWN to enter glowing pipes &middot; X to throw fireballs (fire form)<br>
       Stomp enemies from above &middot; grab coins &middot; reach the flag!<br>
+      Mushroom = grow big &middot; Flower = fireballs &middot; Star = invincible!<br>
       <span id="high-score-line" style="color:#ffd700"></span>
     </div>
   </div>
@@ -98,6 +102,7 @@ canvas{width:100%;height:auto;display:block;border-radius:8px;border:2px solid #
     <button class="touch-btn" id="left-btn">◀</button>
     <button class="touch-btn" id="right-btn">▶</button>
   </div>
+  <button class="touch-btn" id="action-btn" style="display:none;">⬇</button>
   <button class="touch-btn" id="jump-btn">▲</button>
 </div>
 
@@ -139,7 +144,13 @@ const sfx = {
   bump(){ tone(220,0.08,'square',0.12,0,140); },
   die(){ tone(300,0.5,'sawtooth',0.15,0,50); },
   levelComplete(){ [523,659,784,1047].forEach((f,i)=>tone(f,0.18,'square',0.12,i*0.15)); },
-  gameOver(){ [392,349,330,262].forEach((f,i)=>tone(f,0.28,'sawtooth',0.13,i*0.22)); }
+  gameOver(){ [392,349,330,262].forEach((f,i)=>tone(f,0.28,'sawtooth',0.13,i*0.22)); },
+  warpDown(){ tone(500,0.3,'sine',0.15,0,120); },
+  warpUp(){ tone(200,0.3,'sine',0.15,0,700); },
+  powerup(){ [440,554,659,880].forEach((f,i)=>tone(f,0.12,'square',0.14,i*0.09)); },
+  hurt(){ tone(400,0.25,'sawtooth',0.16,0,120); },
+  breakBlock(){ tone(150,0.1,'square',0.15,0,50); tone(90,0.12,'sawtooth',0.1,0.03); },
+  fireball(){ tone(700,0.08,'square',0.1,0,300); }
 };
 
 /* ---------------- Background music (procedural chiptune) ---------------- */
@@ -251,19 +262,25 @@ function toggleMusic(){
 function buildLevel(def){
   const rows = 12;
   const groundRow = 10;
-  const platforms = [], coins = [], enemies = [];
+  const platforms = [], coins = [], enemies = [], warps = [];
   const cols = def.width;
   for(let c=0; c<cols; c++){
     const inPit = (def.pits||[]).some(([a,b])=>c>=a && c<b);
     if(!inPit) platforms.push({x:c*T, y:groundRow*T, w:T, h:(rows-groundRow)*T, type:'ground'});
   }
-  (def.blocks||[]).forEach(([c,r,type])=>{
-    platforms.push({x:c*T, y:r*T, w:T, h:T, type:type||'brick', used:false});
+  (def.blocks||[]).forEach(([c,r,type,powerupType])=>{
+    platforms.push({x:c*T, y:r*T, w:T, h:T, type:type||'brick', used:false, powerupType});
   });
   (def.pipes||[]).forEach(([c,r])=>{
     for(let rr=r; rr<groundRow; rr++){
-      platforms.push({x:c*T, y:rr*T, w:T*2, h:T, type:'pipe'});
+      platforms.push({x:c*T, y:rr*T, w:T*2, h:T, type:'pipe', isPipeTop: rr===r});
     }
+  });
+  (def.warpPipes||[]).forEach(([c,r,destCol,destRow])=>{
+    for(let rr=r; rr<groundRow; rr++){
+      platforms.push({x:c*T, y:rr*T, w:T*2, h:T, type:'pipe', isPipeTop: rr===r, warp:true});
+    }
+    warps.push({x:c*T, x2:c*T+T*2, topY:r*T, destCol, destRow});
   });
   (def.coins||[]).forEach(([c,r])=>{
     coins.push({x:c*T+T/2, y:r*T+T/2, rad:9, taken:false});
@@ -277,7 +294,8 @@ function buildLevel(def){
     width: cols*T,
     height: rows*T,
     groundRow,
-    platforms, coins, enemies,
+    platforms, coins, enemies, warps,
+    powerups: [], fireballs: [],
     flagX: def.flagCol*T,
     flagTopRow: def.flagRow,
     start: {x: def.start[0]*T, y: def.start[1]*T - 42},
@@ -289,16 +307,18 @@ const LEVELS = [
   {
     name:'1-1', width:60, time:100, start:[2,10], flagCol:57, flagRow:3,
     pits:[[34,37]],
-    blocks:[[10,7,'question'],[11,7,'brick'],[12,7,'question'],[13,7,'brick'],[22,6,'brick'],[46,6,'question']],
+    blocks:[[10,7,'question','mushroom'],[11,7,'brick'],[12,7,'question'],[13,7,'brick'],[22,6,'brick'],[46,6,'question','fireflower']],
     pipes:[[16,8],[42,7]],
+    warpPipes:[[7,8,39,10]],
     coins:[[10,4],[11,4],[12,4],[13,4],[5,8],[6,8],[25,8],[26,8],[27,8],[50,8],[51,8],[52,8]],
     enemies:[[22,10,18,30],[48,10,44,55]]
   },
   {
     name:'1-2', width:75, time:120, start:[2,10], flagCol:73, flagRow:3,
     pits:[[20,22],[50,53]],
-    blocks:[[10,7,'brick'],[11,7,'brick'],[30,7,'brick'],[31,6,'brick'],[32,5,'brick'],[33,5,'question'],[60,6,'brick'],[61,6,'brick'],[62,6,'brick']],
+    blocks:[[10,7,'brick'],[11,7,'brick'],[30,7,'brick'],[31,6,'brick'],[32,5,'brick'],[33,5,'question','mushroom'],[42,6,'question','fireflower'],[60,6,'brick'],[61,6,'brick'],[62,6,'brick']],
     pipes:[[15,7],[45,8],[65,7]],
+    warpPipes:[[5,8,53,10]],
     coins:[[20,7],[21,6],[30,6],[31,5],[32,4],[33,4],[55,8],[56,8],[60,4],[61,4],[62,4],[70,8],[71,8]],
     enemies:[[12,10,8,18],[38,10,34,48],[58,10,55,68],[63,10,55,68]]
   },
@@ -306,12 +326,13 @@ const LEVELS = [
     name:'1-3', width:90, time:150, start:[2,10], flagCol:89, flagRow:2,
     pits:[[18,20],[35,38],[60,62],[75,78]],
     blocks:[
-      [10,7,'question'],[25,7,'brick'],[26,7,'brick'],[45,6,'question'],
-      [55,7,'brick'],[56,6,'brick'],[56,7,'brick'],[70,7,'brick'],[71,7,'brick'],
+      [10,7,'question','mushroom'],[25,7,'brick'],[26,7,'brick'],[45,6,'question','fireflower'],
+      [55,7,'brick'],[56,6,'brick'],[56,7,'brick'],[70,7,'brick'],[71,7,'brick'],[82,5,'question','star'],
       [84,9,'brick'],[85,8,'brick'],[85,9,'brick'],[86,7,'brick'],[86,8,'brick'],[86,9,'brick'],
       [87,6,'brick'],[87,7,'brick'],[87,8,'brick'],[87,9,'brick']
     ],
     pipes:[[8,7],[30,7],[65,7]],
+    warpPipes:[[4,8,63,10]],
     coins:[[10,4],[25,4],[26,4],[40,8],[41,8],[45,3],[55,5],[56,4],[70,4],[71,4],[80,8],[81,8],[82,8],[15,8],[48,8]],
     enemies:[[14,10,10,17],[27,10,24,34],[39,10,38,50],[52,10,50,59],[68,10,64,74],[80,10,78,88]]
   }
@@ -327,16 +348,19 @@ const JUMP_CUT = -300;
 const MAX_FALL = 900;
 
 /* ---------------- Game state ---------------- */
-let state = 'title'; // title, playing, paused, dying, levelComplete, gameOver, win
+let state = 'title'; // title, playing, paused, dying, levelComplete, gameOver, win, warping
 let level = null;
 let player = null;
 let camX = 0;
 let score = 0, coinsCollected = 0, lives = 3, currentLevelIdx = 0, timeLeft = 100;
 let dyingTimer = 0, completeTimer = 0;
 let runCycle = 0;
-const keys = {left:false, right:false, jump:false};
-let jumpHeld = false;
+const keys = {left:false, right:false, jump:false, down:false, fire:false};
+let jumpHeld = false, downHeld = false, fireHeld = false;
+let fireCooldown = 0;
 let popups = []; // {x,y,text,life}
+const FORM_HEIGHTS = {small:42, big:58, fire:58};
+let warpDest = null, warpPhase = '', warpTimer = 0, playerAlpha = 1;
 
 function rectsOverlap(a,b){
   return a.x < b.x+b.w && a.x+a.w > b.x && a.y < b.y+b.h && a.y+a.h > b.y;
@@ -348,11 +372,13 @@ function circleRectOverlap(c,r){
   return dx*dx+dy*dy < c.rad*c.rad;
 }
 
-function loadLevel(idx){
+function loadLevel(idx, carryForm){
   level = buildLevel(LEVELS[idx]);
-  player = {x:level.start.x, y:level.start.y, w:30, h:42, vx:0, vy:0, onGround:false, facing:1, alive:true};
+  player = {x:level.start.x, y:level.start.y, w:30, h:42, vx:0, vy:0, onGround:false, facing:1, alive:true, form:'small', starTimer:0, hurtInvuln:0};
+  if(carryForm && carryForm !== 'small') setPlayerForm(carryForm);
   camX = 0;
   timeLeft = level.timeLimit;
+  playerAlpha = 1;
 }
 
 function startGame(){
@@ -361,6 +387,81 @@ function startGame(){
   state = 'playing';
   setOverlay(null);
   startMusic();
+}
+
+function setPlayerForm(newForm){
+  const oldH = player.h;
+  const newH = FORM_HEIGHTS[newForm];
+  player.y += (oldH - newH);
+  player.h = newH;
+  player.form = newForm;
+}
+
+function updateCamera(){
+  const halfW = canvas.width/2;
+  camX = Math.max(0, Math.min(player.x + player.w/2 - halfW, level.width - canvas.width));
+}
+
+function findWarpUnderPlayer(){
+  if(!player || !level || !player.onGround) return null;
+  for(const wz of level.warps){
+    if(player.x + player.w > wz.x && player.x < wz.x2 && Math.abs((player.y+player.h) - wz.topY) < 4){
+      return wz;
+    }
+  }
+  return null;
+}
+
+function startWarp(wz){
+  state = 'warping';
+  warpPhase = 'down';
+  warpTimer = 0.35;
+  warpDest = wz;
+  keys.left = false; keys.right = false; keys.jump = false;
+  player.vx = 0; player.vy = 0;
+  sfx.warpDown();
+}
+
+function shootFireball(){
+  if(!level || player.form !== 'fire' || fireCooldown > 0) return;
+  if(level.fireballs.filter(fb=>fb.alive).length >= 2) return;
+  fireCooldown = 0.3;
+  level.fireballs.push({
+    x: player.facing > 0 ? player.x + player.w : player.x - 14,
+    y: player.y + player.h*0.5,
+    w:14, h:14, vx: player.facing*420, vy:0, alive:true
+  });
+  sfx.fireball();
+}
+
+function spawnPowerupFromBlock(p){
+  if(p.powerupType){
+    level.powerups.push({
+      x: p.x + T/2 - 14, y: p.y - 30, w:28, h:28,
+      vx: p.powerupType === 'fireflower' ? 0 : 60,
+      vy: -260, dir: 1, type: p.powerupType, alive: true
+    });
+    popups.push({x:p.x+T/2, y:p.y-10, text:'!', life:0.6});
+  } else {
+    score += 50;
+    coinsCollected++;
+    popups.push({x:p.x+T/2, y:p.y, text:'+50', life:0.8});
+  }
+}
+
+function collectPowerup(item){
+  item.alive = false;
+  score += 200;
+  const label = item.type === 'star' ? 'STAR!' : (item.type === 'fireflower' ? 'FIRE!' : 'BIG!');
+  popups.push({x:item.x+item.w/2, y:item.y, text:label, life:1.0});
+  if(item.type === 'mushroom'){
+    if(player.form === 'small') setPlayerForm('big');
+  } else if(item.type === 'fireflower'){
+    setPlayerForm('fire');
+  } else if(item.type === 'star'){
+    player.starTimer = 9;
+  }
+  sfx.powerup();
 }
 
 function die(){
@@ -409,7 +510,7 @@ function nextLevelOrWin(){
     document.getElementById('win-high').textContent = 'BEST: ' + getHighScore();
     setOverlay('ov-win');
   } else {
-    loadLevel(currentLevelIdx);
+    loadLevel(currentLevelIdx, player.form);
     state = 'playing';
     setOverlay(null);
   }
@@ -437,12 +538,16 @@ window.addEventListener('keydown', e=>{
     keys.jump = true;
     if(state === 'title') startGame();
   }
+  if(e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') keys.down = true;
+  if(e.key === 'x' || e.key === 'X') keys.fire = true;
   if(e.key === 'p' || e.key === 'P' || e.key === 'Escape') togglePause();
 });
 window.addEventListener('keyup', e=>{
   if(e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') keys.left = false;
   if(e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') keys.right = false;
   if(e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W' || e.key === ' ') keys.jump = false;
+  if(e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') keys.down = false;
+  if(e.key === 'x' || e.key === 'X') keys.fire = false;
 });
 
 function bindHold(el, onDown, onUp){
@@ -454,6 +559,22 @@ function bindHold(el, onDown, onUp){
 bindHold(document.getElementById('left-btn'), ()=>keys.left=true, ()=>keys.left=false);
 bindHold(document.getElementById('right-btn'), ()=>keys.right=true, ()=>keys.right=false);
 bindHold(document.getElementById('jump-btn'), ()=>{keys.jump=true;}, ()=>keys.jump=false);
+document.getElementById('action-btn').addEventListener('pointerdown', e=>{
+  e.preventDefault();
+  ensureAudio();
+  const mode = e.currentTarget.dataset.mode;
+  if(mode === 'warp'){ const wz = findWarpUnderPlayer(); if(wz) startWarp(wz); }
+  else if(mode === 'fire'){ shootFireball(); }
+});
+function updateActionButton(){
+  const btn = document.getElementById('action-btn');
+  if(!btn) return;
+  if(state !== 'playing'){ btn.style.display = 'none'; return; }
+  const wz = findWarpUnderPlayer();
+  if(wz){ btn.style.display = 'flex'; btn.textContent = '⬇'; btn.dataset.mode = 'warp'; }
+  else if(player.form === 'fire'){ btn.style.display = 'flex'; btn.textContent = '🔥'; btn.dataset.mode = 'fire'; }
+  else { btn.style.display = 'none'; }
+}
 
 function togglePause(){
   if(state === 'playing'){
@@ -482,6 +603,21 @@ refreshHighScoreLine();
 
 /* ---------------- Update ---------------- */
 function updatePlayer(dt){
+  if(player.hurtInvuln > 0) player.hurtInvuln -= dt;
+  if(player.starTimer > 0) player.starTimer -= dt;
+  if(fireCooldown > 0) fireCooldown -= dt;
+
+  const downPressed = keys.down && !downHeld;
+  downHeld = keys.down;
+  const firePressed = keys.fire && !fireHeld;
+  fireHeld = keys.fire;
+
+  if(downPressed){
+    const wz = findWarpUnderPlayer();
+    if(wz){ startWarp(wz); return; }
+  }
+  if(firePressed && player.form === 'fire') shootFireball();
+
   if(keys.left && !keys.right){ player.vx -= MOVE_ACCEL*dt; player.facing = -1; }
   else if(keys.right && !keys.left){ player.vx += MOVE_ACCEL*dt; player.facing = 1; }
   else {
@@ -526,16 +662,77 @@ function updatePlayer(dt){
         player.vy = 0;
         if(p.type === 'question' && !p.used){
           p.used = true;
-          score += 50;
-          coinsCollected++;
-          popups.push({x:p.x+T/2, y:p.y, text:'+50', life:0.8});
+          spawnPowerupFromBlock(p);
+          sfx.bump();
+        } else if(p.type === 'brick' && player.form !== 'small'){
+          p.destroyed = true;
+          score += 10;
+          popups.push({x:p.x+T/2, y:p.y, text:'+10', life:0.8});
+          sfx.breakBlock();
+        } else {
+          sfx.bump();
         }
-        sfx.bump();
       }
     }
   }
+  level.platforms = level.platforms.filter(p=>!p.destroyed);
 
   if(player.vx !== 0 && player.onGround) runCycle += dt*10;
+
+  // powerup items popped from blocks
+  for(const item of level.powerups){
+    if(!item.alive) continue;
+    item.vy += GRAVITY*dt;
+    if(item.vy > MAX_FALL) item.vy = MAX_FALL;
+    item.x += item.vx*dt;
+    for(const p of level.platforms){
+      if(rectsOverlap(item,p)){
+        if(item.vx > 0){ item.x = p.x - item.w; item.dir = -1; if(item.type!=='fireflower') item.vx = -Math.abs(item.vx); }
+        else if(item.vx < 0){ item.x = p.x + item.w; item.dir = 1; if(item.type!=='fireflower') item.vx = Math.abs(item.vx); }
+      }
+    }
+    item.y += item.vy*dt;
+    for(const p of level.platforms){
+      if(rectsOverlap(item,p)){
+        if(item.vy > 0){
+          item.y = p.y - item.h;
+          item.vy = item.type === 'star' ? -620 : 0;
+        } else if(item.vy < 0){
+          item.y = p.y + p.h;
+          item.vy = 0;
+        }
+      }
+    }
+    if(item.y > level.height + 100) item.alive = false;
+    if(item.alive && rectsOverlap(player,item)) collectPowerup(item);
+  }
+  level.powerups = level.powerups.filter(it=>it.alive);
+
+  // fireballs
+  for(const fb of level.fireballs){
+    if(!fb.alive) continue;
+    fb.vy += GRAVITY*1.1*dt;
+    fb.x += fb.vx*dt;
+    fb.y += fb.vy*dt;
+    for(const p of level.platforms){
+      if(rectsOverlap(fb,p)){
+        if(fb.vy > 0){ fb.y = p.y - fb.h; fb.vy = -600; }
+        else { fb.x -= fb.vx*dt; fb.vx = -fb.vx; }
+      }
+    }
+    if(fb.x < camX-60 || fb.x > camX+canvas.width+60 || fb.y > level.height+100) fb.alive = false;
+    for(const e of level.enemies){
+      if(e.alive && rectsOverlap(fb,e)){
+        e.alive = false;
+        e.squash = 0.3;
+        fb.alive = false;
+        score += 100;
+        popups.push({x:e.x+e.w/2, y:e.y, text:'+100', life:0.8});
+        sfx.stomp();
+      }
+    }
+  }
+  level.fireballs = level.fireballs.filter(fb=>fb.alive);
 
   // enemies
   for(const e of level.enemies){
@@ -552,6 +749,18 @@ function updatePlayer(dt){
         score += 100;
         popups.push({x:e.x+e.w/2, y:e.y, text:'+100', life:0.8});
         sfx.stomp();
+      } else if(player.starTimer > 0){
+        e.alive = false;
+        e.squash = 0.3;
+        score += 100;
+        popups.push({x:e.x+e.w/2, y:e.y, text:'+100', life:0.8});
+        sfx.stomp();
+      } else if(player.hurtInvuln > 0){
+        // mid-flicker invincibility after a recent hit, ignore contact
+      } else if(player.form !== 'small'){
+        setPlayerForm(player.form === 'fire' ? 'big' : 'small');
+        player.hurtInvuln = 1.6;
+        sfx.hurt();
       } else {
         die();
         return;
@@ -578,9 +787,7 @@ function updatePlayer(dt){
   // fell in pit
   if(player.y > level.height + 100){ die(); return; }
 
-  // camera
-  const halfW = canvas.width/2;
-  camX = Math.max(0, Math.min(player.x + player.w/2 - halfW, level.width - canvas.width));
+  updateCamera();
 
   // timer
   timeLeft -= dt;
@@ -598,10 +805,31 @@ function update(dt){
   } else if(state === 'levelComplete'){
     completeTimer -= dt;
     if(completeTimer <= 0) nextLevelOrWin();
+  } else if(state === 'warping'){
+    warpTimer -= dt;
+    if(warpPhase === 'down'){
+      playerAlpha = Math.max(0, warpTimer/0.35);
+      if(warpTimer <= 0){
+        player.x = warpDest.destCol*T;
+        player.y = warpDest.destRow*T - player.h;
+        player.vx = 0; player.vy = 0; player.onGround = true;
+        updateCamera();
+        warpPhase = 'up';
+        warpTimer = 0.35;
+        sfx.warpUp();
+      }
+    } else if(warpPhase === 'up'){
+      playerAlpha = 1 - Math.max(0, warpTimer/0.35);
+      if(warpTimer <= 0){
+        playerAlpha = 1;
+        state = 'playing';
+      }
+    }
   }
   popups.forEach(p=>{ p.life -= dt; p.y -= dt*30; });
   popups = popups.filter(p=>p.life > 0);
   updateHUD();
+  updateActionButton();
 }
 
 function updateHUD(){
@@ -677,10 +905,21 @@ function drawPlatform(p){
       ctx.fillText('?', x+p.w/2, y+p.h/2+2);
     }
   } else if(p.type === 'pipe'){
-    ctx.fillStyle = '#1f9d55';
+    ctx.fillStyle = p.warp ? '#0fb87a' : '#1f9d55';
     ctx.fillRect(x,y,p.w,p.h);
     ctx.strokeStyle = 'rgba(0,0,0,0.3)';
     ctx.strokeRect(x+2,y+2,p.w-4,p.h-4);
+    if(p.isPipeTop){
+      ctx.fillStyle = p.warp ? '#3fffc0' : '#2ec97a';
+      ctx.fillRect(x-3,y,p.w+6,10);
+      if(p.warp){
+        const bob = Math.sin(performance.now()/300)*3;
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 14px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('⬇', x+p.w/2, y-8+bob);
+      }
+    }
   }
 }
 
@@ -734,6 +973,69 @@ function drawGoomba(e){
   }
 }
 
+function drawPowerup(item){
+  const x = item.x - camX, y = item.y;
+  if(!item.alive) return;
+  if(x+item.w < 0 || x > canvas.width) return;
+  if(item.type === 'mushroom'){
+    ctx.fillStyle = '#e6394b';
+    ctx.beginPath();
+    ctx.arc(x+item.w/2, y+item.h*0.4, item.w/2, Math.PI, 0);
+    ctx.fill();
+    ctx.fillStyle = '#f4c28c';
+    ctx.fillRect(x+item.w*0.22, y+item.h*0.4, item.w*0.56, item.h*0.5);
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(x+item.w*0.3, y+item.h*0.28, 3, 0, Math.PI*2);
+    ctx.arc(x+item.w*0.7, y+item.h*0.28, 3, 0, Math.PI*2);
+    ctx.fill();
+  } else if(item.type === 'fireflower'){
+    const bob = Math.sin(performance.now()/200)*2;
+    ctx.fillStyle = '#3fae3f';
+    ctx.fillRect(x+item.w/2-2, y+item.h*0.5+bob, 4, item.h*0.5);
+    ctx.fillStyle = '#ff8c00';
+    ctx.beginPath();
+    ctx.arc(x+item.w/2, y+item.h*0.35+bob, 9, 0, Math.PI*2);
+    ctx.fill();
+    ctx.fillStyle = '#fff2c0';
+    ctx.beginPath();
+    ctx.arc(x+item.w/2, y+item.h*0.35+bob, 4, 0, Math.PI*2);
+    ctx.fill();
+  } else if(item.type === 'star'){
+    const rot = performance.now()/300;
+    ctx.save();
+    ctx.translate(x+item.w/2, y+item.h/2);
+    ctx.rotate(rot);
+    ctx.fillStyle = '#ffd700';
+    ctx.strokeStyle = '#b8860b';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    for(let i=0;i<5;i++){
+      const a = (i*2*Math.PI/5) - Math.PI/2;
+      const a2 = a + Math.PI/5;
+      ctx.lineTo(Math.cos(a)*13, Math.sin(a)*13);
+      ctx.lineTo(Math.cos(a2)*5.5, Math.sin(a2)*5.5);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+function drawFireball(fb){
+  const x = fb.x - camX, y = fb.y;
+  if(x+fb.w < 0 || x > canvas.width) return;
+  ctx.fillStyle = '#ff6a00';
+  ctx.beginPath();
+  ctx.arc(x+fb.w/2, y+fb.h/2, fb.w/2, 0, Math.PI*2);
+  ctx.fill();
+  ctx.fillStyle = '#ffd23f';
+  ctx.beginPath();
+  ctx.arc(x+fb.w/2, y+fb.h/2, fb.w/3.2, 0, Math.PI*2);
+  ctx.fill();
+}
+
 function drawFlag(){
   const x = level.flagX - camX;
   const topY = level.flagTopRow*T;
@@ -755,8 +1057,10 @@ function drawFlag(){
 }
 
 function drawPlayer(){
+  if(player.hurtInvuln > 0 && Math.floor(performance.now()/80) % 2 === 0) return;
   const x = player.x - camX, y = player.y, w = player.w, h = player.h;
   ctx.save();
+  ctx.globalAlpha = playerAlpha;
   ctx.translate(x+w/2, y);
   ctx.scale(player.facing, 1);
   ctx.translate(-w/2, 0);
@@ -764,17 +1068,28 @@ function drawPlayer(){
   const legPhase = player.onGround && Math.abs(player.vx) > 5 ? Math.sin(runCycle) : 0;
   const legOffset = legPhase*6;
 
+  let overallsColor = '#274690';
+  let shirtColor = '#e63946';
+  if(player.starTimer > 0){
+    const hue = (performance.now()/6) % 360;
+    overallsColor = `hsl(${hue},80%,45%)`;
+    shirtColor = `hsl(${(hue+120)%360},80%,55%)`;
+  } else if(player.form === 'fire'){
+    overallsColor = '#ffffff';
+    shirtColor = '#e63946';
+  }
+
   // legs
-  ctx.fillStyle = '#274690';
+  ctx.fillStyle = overallsColor;
   ctx.fillRect(2, h-14, 10, 14 - Math.max(0,legOffset));
   ctx.fillRect(w-12, h-14, 10, 14 + Math.max(0,-legOffset));
 
   // overalls body
-  ctx.fillStyle = '#274690';
+  ctx.fillStyle = overallsColor;
   ctx.fillRect(2, h*0.45, w-4, h*0.4);
 
   // shirt/arms
-  ctx.fillStyle = '#e63946';
+  ctx.fillStyle = shirtColor;
   ctx.fillRect(-2, h*0.32, w+4, h*0.2);
   ctx.fillRect(-4, h*0.36, 6, h*0.24);
   ctx.fillRect(w-2, h*0.36, 6, h*0.24);
@@ -791,7 +1106,7 @@ function drawPlayer(){
   ctx.fillRect(4, h*0.08, w-8, h*0.28);
 
   // cap
-  ctx.fillStyle = '#e63946';
+  ctx.fillStyle = shirtColor;
   ctx.fillRect(0, h*0.02, w, h*0.14);
   ctx.fillRect(w*0.55, h*0.1, w*0.5, h*0.08);
 
@@ -821,8 +1136,10 @@ function render(){
     level.platforms.forEach(drawPlatform);
     drawFlag();
     level.coins.forEach(drawCoin);
+    level.powerups.forEach(drawPowerup);
     level.enemies.forEach(drawGoomba);
-    if(player && player.alive !== false || state === 'dying') drawPlayer();
+    level.fireballs.forEach(drawFireball);
+    if(player) drawPlayer();
     drawPopups();
   }
 }
@@ -833,7 +1150,7 @@ function loop(now){
   let dt = (now - lastTime)/1000;
   lastTime = now;
   if(dt > 1/20) dt = 1/20;
-  if(state === 'playing' || state === 'dying' || state === 'levelComplete'){
+  if(state === 'playing' || state === 'dying' || state === 'levelComplete' || state === 'warping'){
     update(dt);
   }
   render();
