@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Plumber Bros — Level Editor</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:#0a0a1a;color:#fff;font-family:monospace;padding:10px;min-height:100vh;}
+.wrap{max-width:1100px;margin:0 auto;}
+header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;}
+h1{font-size:18px;color:#ffd700;text-shadow:2px 2px 0 #e63946;letter-spacing:1px;}
+a.back-link{color:#7fa8ff;text-decoration:none;font-size:12px;border:1px solid #2a3352;padding:8px 12px;border-radius:6px;background:#151a2e;}
+a.back-link:hover{border-color:#3b6ee6;}
+.panel{background:#151a2e;border:2px solid #2a3352;border-radius:8px;padding:10px 12px;margin-bottom:10px;}
+.settings-row{display:flex;gap:14px;flex-wrap:wrap;align-items:center;}
+.field{display:flex;flex-direction:column;gap:3px;}
+.field label{font-size:10px;color:#7fa8ff;letter-spacing:1px;}
+.field input{background:#0d1120;border:1px solid #2a3352;color:#fff;border-radius:4px;padding:6px 8px;font-family:monospace;font-size:13px;}
+.field input[type=number]{width:70px;}
+.field input[type=text]{width:180px;}
+.toolbar{display:flex;flex-wrap:wrap;gap:6px;}
+.tool-group{display:flex;flex-wrap:wrap;gap:6px;padding:6px;border:1px solid #232a42;border-radius:6px;}
+.tool-btn{background:#1c2338;border:2px solid #2a3352;color:#dce4ff;border-radius:6px;padding:7px 9px;font-family:monospace;font-size:11px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;min-width:56px;}
+.tool-btn .ic{font-size:16px;}
+.tool-btn:hover{border-color:#3b6ee6;}
+.tool-btn.selected{border-color:#ffd700;background:#2a2612;color:#ffd700;}
+.action-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+.act-btn{background:linear-gradient(135deg,#3b6ee6,#1e3a8a);border:none;color:#fff;border-radius:6px;padding:9px 14px;font-family:monospace;font-size:12px;font-weight:bold;cursor:pointer;}
+.act-btn.alt{background:linear-gradient(135deg,#e63946,#8b1e2b);}
+.act-btn.gold{background:linear-gradient(135deg,#f7b500,#8b6b00);}
+.act-btn:active{transform:translateY(1px);}
+select{background:#0d1120;border:1px solid #2a3352;color:#fff;border-radius:4px;padding:7px 8px;font-family:monospace;font-size:12px;max-width:180px;}
+#canvas-scroll{width:100%;overflow-x:auto;overflow-y:hidden;border:2px solid #3b6ee6;border-radius:8px;background:#5c94fc;}
+canvas{display:block;touch-action:none;cursor:crosshair;}
+#status{font-size:12px;color:#7fa8ff;margin-top:8px;min-height:16px;}
+#status.ok{color:#3fae3f;}
+.nav-row{display:flex;gap:6px;margin-top:6px;}
+.nav-btn{background:#1c2338;border:1px solid #2a3352;color:#dce4ff;border-radius:6px;padding:6px 12px;font-family:monospace;font-size:11px;cursor:pointer;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>🛠 LEVEL EDITOR</h1>
+    <a class="back-link" href="index.html">◀ BACK TO GAME</a>
+  </header>
+
+  <div class="panel">
+    <div class="settings-row">
+      <div class="field">
+        <label>LEVEL NAME</label>
+        <input type="text" id="f-name" value="My Level" maxlength="20">
+      </div>
+      <div class="field">
+        <label>WIDTH (tiles)</label>
+        <input type="number" id="f-width" value="40" min="12" max="200">
+      </div>
+      <div class="field">
+        <label>TIME LIMIT</label>
+        <input type="number" id="f-time" value="120" min="30" max="999">
+      </div>
+      <div class="field">
+        <label>LOAD SAVED</label>
+        <select id="f-load"><option value="">— select —</option></select>
+      </div>
+      <div class="action-row">
+        <button class="act-btn" id="btn-new">✚ NEW</button>
+        <button class="act-btn gold" id="btn-save">💾 SAVE</button>
+        <button class="act-btn alt" id="btn-delete">✕ DELETE</button>
+        <button class="act-btn" id="btn-playtest" style="background:linear-gradient(135deg,#3fae3f,#1e5c1e);">▶ PLAY TEST</button>
+      </div>
+    </div>
+    <div id="status"></div>
+  </div>
+
+  <div class="panel">
+    <div class="toolbar">
+      <div class="tool-group">
+        <button class="tool-btn" data-tool="pit"><span class="ic">⛏</span>GROUND</button>
+        <button class="tool-btn" data-tool="eraser"><span class="ic">🧹</span>ERASE</button>
+      </div>
+      <div class="tool-group">
+        <button class="tool-btn" data-tool="brick"><span class="ic">🧱</span>BRICK</button>
+        <button class="tool-btn" data-tool="qcoin"><span class="ic">❓</span>COIN BOX</button>
+        <button class="tool-btn" data-tool="qmushroom"><span class="ic">🍄</span>MUSHROOM</button>
+        <button class="tool-btn" data-tool="qfire"><span class="ic">🔥</span>FIRE</button>
+        <button class="tool-btn" data-tool="qstar"><span class="ic">⭐</span>STAR</button>
+        <button class="tool-btn" data-tool="pipe"><span class="ic">🟩</span>PIPE</button>
+      </div>
+      <div class="tool-group">
+        <button class="tool-btn" data-tool="coin"><span class="ic">🪙</span>COIN</button>
+      </div>
+      <div class="tool-group">
+        <button class="tool-btn" data-tool="goomba"><span class="ic">😠</span>GOOMBA</button>
+        <button class="tool-btn" data-tool="koopa"><span class="ic">🐢</span>KOOPA</button>
+        <button class="tool-btn" data-tool="spiny"><span class="ic">😈</span>SPINY</button>
+        <button class="tool-btn" data-tool="bat"><span class="ic">🦇</span>BAT</button>
+      </div>
+      <div class="tool-group">
+        <button class="tool-btn" data-tool="start"><span class="ic">🚩</span>START</button>
+        <button class="tool-btn" data-tool="flag"><span class="ic">🏁</span>FLAG</button>
+      </div>
+    </div>
+    <div class="nav-row">
+      <button class="nav-btn" id="btn-home">⏮ HOME</button>
+      <button class="nav-btn" id="btn-end">⏭ END</button>
+      <span style="font-size:11px;color:#7fa8ff;align-self:center;margin-left:8px;">Click/drag to paint. Bat height = row you click. Everything else sits on the ground.</span>
+    </div>
+  </div>
+
+  <div id="canvas-scroll">
+    <canvas id="canvas"></canvas>
+  </div>
+</div>
+
+<script>
+(function(){
+"use strict";
+const T = 40, ROWS = 12, GROUND_ROW = 10;
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const scrollWrap = document.getElementById('canvas-scroll');
+
+let editorState = null;
+let currentTool = 'pit';
+let currentLevelId = null;
+let dragMode = null;
+let hoverCell = {col:-1,row:-1};
+
+function blankState(){
+  return {
+    name: 'My Level', width: 40, time: 120,
+    startCol: 2, flagCol: 36, flagRow: 3,
+    pit: new Set(), blocks: {}, pipes: [], coins: new Set(), enemies: []
+  };
+}
+
+function newLevel(){
+  editorState = blankState();
+  currentLevelId = null;
+  document.getElementById('f-name').value = editorState.name;
+  document.getElementById('f-width').value = editorState.width;
+  document.getElementById('f-time').value = editorState.time;
+  resizeCanvas();
+  setStatus('New blank level. Start on the left, flag on the right — paint some ground!');
+}
+
+function resizeCanvas(){
+  canvas.width = editorState.width * T;
+  canvas.height = ROWS * T;
+}
+
+/* ---------------- tool helpers ---------------- */
+function key(c,r){ return c+','+r; }
+function toolToBlock(tool){
+  if(tool === 'brick') return {type:'brick'};
+  if(tool === 'qcoin') return {type:'question'};
+  if(tool === 'qmushroom') return {type:'question', powerupType:'mushroom'};
+  if(tool === 'qfire') return {type:'question', powerupType:'fireflower'};
+  if(tool === 'qstar') return {type:'question', powerupType:'star'};
+  return null;
+}
+function pipeAt(col,row){
+  return editorState.pipes.find(p=>p.col===col && p.row===row);
+}
+function removePipesAt(col,row){
+  editorState.pipes = editorState.pipes.filter(p=>{
+    const spans = (col===p.col || col===p.col+1) && row>=p.row && row<GROUND_ROW;
+    return !spans;
+  });
+}
+const BLOCK_TOOLS = ['brick','qcoin','qmushroom','qfire','qstar'];
+const ENEMY_TOOLS = ['goomba','koopa','spiny','bat'];
+
+function isOccupied(col,row){
+  if(currentTool === 'pit') return editorState.pit.has(col);
+  if(BLOCK_TOOLS.includes(currentTool)) return !!editorState.blocks[key(col,row)];
+  if(currentTool === 'pipe') return editorState.pipes.some(p=>(p.col===col||p.col+1===col) && row>=p.row && row<GROUND_ROW);
+  if(currentTool === 'coin') return editorState.coins.has(key(col,row));
+  if(ENEMY_TOOLS.includes(currentTool)) return editorState.enemies.some(e=>e.col===col);
+  return false;
+}
+function placeAt(col,row){
+  if(currentTool === 'pit'){ editorState.pit.add(col); return; }
+  if(BLOCK_TOOLS.includes(currentTool)){
+    if(row >= GROUND_ROW) return;
+    editorState.blocks[key(col,row)] = toolToBlock(currentTool);
+    return;
+  }
+  if(currentTool === 'pipe'){
+    if(row >= GROUND_ROW) return;
+    removePipesAt(col,row); removePipesAt(col+1,row);
+    editorState.pipes.push({col,row});
+    return;
+  }
+  if(currentTool === 'coin'){
+    if(row >= GROUND_ROW) return;
+    editorState.coins.add(key(col,row));
+    return;
+  }
+  if(ENEMY_TOOLS.includes(currentTool)){
+    editorState.enemies = editorState.enemies.filter(e=>e.col!==col);
+    editorState.enemies.push({col, row: currentTool==='bat' ? Math.min(row,9) : GROUND_ROW, kind:currentTool});
+    return;
+  }
+}
+function removeAt(col,row){
+  if(currentTool === 'pit'){ editorState.pit.delete(col); return; }
+  if(BLOCK_TOOLS.includes(currentTool)){ delete editorState.blocks[key(col,row)]; return; }
+  if(currentTool === 'pipe'){ removePipesAt(col,row); removePipesAt(col-1,row); return; }
+  if(currentTool === 'coin'){ editorState.coins.delete(key(col,row)); return; }
+  if(ENEMY_TOOLS.includes(currentTool)){ editorState.enemies = editorState.enemies.filter(e=>e.col!==col); return; }
+}
+function eraseAt(col,row){
+  delete editorState.blocks[key(col,row)];
+  editorState.coins.delete(key(col,row));
+  removePipesAt(col,row); removePipesAt(col-1,row);
+  editorState.enemies = editorState.enemies.filter(e=>e.col!==col);
+}
+
+function eventToCell(evt){
+  const rect = canvas.getBoundingClientRect();
+  const cx = evt.clientX, cy = evt.clientY;
+  const x = (cx - rect.left) * (canvas.width / rect.width);
+  const y = (cy - rect.top) * (canvas.height / rect.height);
+  const col = Math.floor(x / T), row = Math.floor(y / T);
+  if(col < 0 || col >= editorState.width || row < 0 || row >= ROWS) return null;
+  return {col,row};
+}
+
+function applyToolAt(col,row, isDown){
+  if(currentTool === 'start'){ editorState.startCol = col; return; }
+  if(currentTool === 'flag'){ editorState.flagCol = col; editorState.flagRow = row; return; }
+  if(currentTool === 'eraser'){ eraseAt(col,row); return; }
+  if(isDown) dragMode = isOccupied(col,row) ? 'erase' : 'place';
+  if(dragMode === 'place') placeAt(col,row); else removeAt(col,row);
+}
+
+let pointerActive = false;
+canvas.addEventListener('pointerdown', e=>{
+  const c = eventToCell(e);
+  if(!c) return;
+  pointerActive = true;
+  dragMode = null;
+  applyToolAt(c.col, c.row, true);
+});
+canvas.addEventListener('pointermove', e=>{
+  const c = eventToCell(e);
+  if(c){ hoverCell = c; }
+  if(pointerActive && c) applyToolAt(c.col, c.row, false);
+});
+window.addEventListener('pointerup', ()=>{ pointerActive = false; dragMode = null; });
+canvas.addEventListener('pointerleave', ()=>{ hoverCell = {col:-1,row:-1}; });
+
+document.querySelectorAll('.tool-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.tool-btn').forEach(b=>b.classList.remove('selected'));
+    btn.classList.add('selected');
+    currentTool = btn.dataset.tool;
+  });
+});
+document.querySelector('.tool-btn[data-tool="pit"]').classList.add('selected');
+
+/* ---------------- rendering ---------------- */
+function drawGround(col){
+  const x = col*T;
+  ctx.fillStyle = '#c46a2e';
+  ctx.fillRect(x, GROUND_ROW*T, T, (ROWS-GROUND_ROW)*T);
+  ctx.fillStyle = '#3fae3f';
+  ctx.fillRect(x, GROUND_ROW*T, T, 8);
+  ctx.strokeStyle = 'rgba(0,0,0,0.15)';
+  ctx.strokeRect(x+1, GROUND_ROW*T+1, T-2, T-2);
+}
+function drawBlock(col,row,b){
+  const x = col*T, y = row*T;
+  if(b.type === 'brick'){
+    ctx.fillStyle = '#b5651d';
+    ctx.fillRect(x,y,T,T);
+    ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+    ctx.strokeRect(x+2,y+2,T-4,T-4);
+    ctx.beginPath();
+    ctx.moveTo(x+T/2,y+2); ctx.lineTo(x+T/2,y+T-2);
+    ctx.moveTo(x+2,y+T/2); ctx.lineTo(x+T-2,y+T/2);
+    ctx.stroke();
+  } else {
+    ctx.fillStyle = '#f7b500';
+    ctx.fillRect(x,y,T,T);
+    ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+    ctx.strokeRect(x+2,y+2,T-4,T-4);
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 18px monospace';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('?', x+T/2, y+T/2+1);
+    if(b.powerupType){
+      const letter = b.powerupType==='mushroom' ? 'M' : b.powerupType==='fireflower' ? 'F' : 'S';
+      ctx.fillStyle = '#e63946';
+      ctx.font = 'bold 10px monospace';
+      ctx.fillText(letter, x+T-8, y+9);
+    }
+  }
+}
+function drawPipe(p){
+  const x = p.col*T, top = p.row*T;
+  ctx.fillStyle = '#1f9d55';
+  ctx.fillRect(x, top, T*2, (GROUND_ROW-p.row)*T);
+  ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+  ctx.strokeRect(x+2, top+2, T*2-4, (GROUND_ROW-p.row)*T-4);
+  ctx.fillStyle = '#2ec97a';
+  ctx.fillRect(x-3, top, T*2+6, 10);
+}
+function drawCoin(col,row){
+  const x = col*T+T/2, y = row*T+T/2;
+  ctx.beginPath();
+  ctx.arc(x,y,9,0,Math.PI*2);
+  ctx.fillStyle = '#ffd700';
+  ctx.fill();
+  ctx.strokeStyle = '#b8860b';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+}
+function drawEnemy(e){
+  const x = e.col*T, y = e.row*T;
+  const colors = {goomba:'#8b5a2b', koopa:'#2ec97a', spiny:'#7a3a2b', bat:'#5b3a7a'};
+  ctx.fillStyle = colors[e.kind];
+  ctx.beginPath();
+  ctx.ellipse(x+T/2, y+T*0.6, T*0.42, T*0.36, 0, 0, Math.PI*2);
+  ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.arc(x+T*0.35, y+T*0.55, 4, 0, Math.PI*2);
+  ctx.arc(x+T*0.65, y+T*0.55, 4, 0, Math.PI*2);
+  ctx.fill();
+  ctx.fillStyle = '#1a1a1a';
+  ctx.beginPath();
+  ctx.arc(x+T*0.35, y+T*0.58, 2, 0, Math.PI*2);
+  ctx.arc(x+T*0.65, y+T*0.58, 2, 0, Math.PI*2);
+  ctx.fill();
+  if(e.kind === 'spiny'){
+    ctx.fillStyle = '#e63946';
+    for(let i=0;i<3;i++){
+      const sx = x + T*(0.2+i*0.3);
+      ctx.beginPath();
+      ctx.moveTo(sx, y+T*0.3); ctx.lineTo(sx-5, y+T*0.12); ctx.lineTo(sx+5, y+T*0.12);
+      ctx.closePath(); ctx.fill();
+    }
+  }
+  if(e.kind === 'bat'){
+    ctx.fillStyle = colors.bat;
+    ctx.beginPath();
+    ctx.moveTo(x+2,y+T*0.5); ctx.lineTo(x-8,y+T*0.3); ctx.lineTo(x+T*0.3,y+T*0.65); ctx.closePath(); ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(x+T-2,y+T*0.5); ctx.lineTo(x+T+8,y+T*0.3); ctx.lineTo(x+T*0.7,y+T*0.65); ctx.closePath(); ctx.fill();
+  }
+}
+function drawFlag(){
+  const x = editorState.flagCol*T + T/2;
+  const topY = editorState.flagRow*T;
+  ctx.fillStyle = '#c9c9c9';
+  ctx.fillRect(x-2, topY, 4, (GROUND_ROW-editorState.flagRow)*T);
+  ctx.beginPath(); ctx.arc(x, topY, 7, 0, Math.PI*2); ctx.fillStyle = '#e8e8e8'; ctx.fill();
+  ctx.fillStyle = '#22a022';
+  ctx.beginPath();
+  ctx.moveTo(x+2, topY+10); ctx.lineTo(x+34, topY+18); ctx.lineTo(x+2, topY+26);
+  ctx.closePath(); ctx.fill();
+}
+function drawStart(){
+  const x = editorState.startCol*T, y = GROUND_ROW*T-42;
+  ctx.fillStyle = '#e63946';
+  ctx.fillRect(x, y, 30, 14);
+  ctx.fillStyle = '#f4c28c';
+  ctx.fillRect(x+4, y+14, 22, 12);
+  ctx.fillStyle = '#274690';
+  ctx.fillRect(x+2, y+26, 26, 16);
+  ctx.fillStyle = '#ffd700';
+  ctx.font = 'bold 9px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('START', x+15, y-4);
+}
+
+function render(){
+  ctx.fillStyle = '#5c94fc';
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  for(let c=0;c<editorState.width;c++){
+    if(!editorState.pit.has(c)) drawGround(c);
+  }
+  for(const k in editorState.blocks) {
+    const [c,r] = k.split(',').map(Number);
+    drawBlock(c,r,editorState.blocks[k]);
+  }
+  editorState.pipes.forEach(drawPipe);
+  editorState.coins.forEach(k=>{
+    const [c,r] = k.split(',').map(Number);
+    drawCoin(c,r);
+  });
+  drawFlag();
+  editorState.enemies.forEach(drawEnemy);
+  drawStart();
+
+  // grid lines for clarity
+  ctx.strokeStyle = 'rgba(0,0,0,0.08)';
+  ctx.lineWidth = 1;
+  for(let c=0;c<=editorState.width;c++){
+    ctx.beginPath(); ctx.moveTo(c*T+0.5,0); ctx.lineTo(c*T+0.5,canvas.height); ctx.stroke();
+  }
+  for(let r=0;r<=ROWS;r++){
+    ctx.beginPath(); ctx.moveTo(0,r*T+0.5); ctx.lineTo(canvas.width,r*T+0.5); ctx.stroke();
+  }
+
+  if(hoverCell.col >= 0){
+    ctx.strokeStyle = '#ffd700';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(hoverCell.col*T+1, hoverCell.row*T+1, T-2, T-2);
+  }
+
+  requestAnimationFrame(render);
+}
+
+/* ---------------- patrol range + serialization ---------------- */
+function pitSetToRanges(pitSet, width){
+  const ranges = [];
+  let start = null;
+  for(let c=0;c<width;c++){
+    if(pitSet.has(c)){
+      if(start === null) start = c;
+    } else if(start !== null){
+      ranges.push([start,c]);
+      start = null;
+    }
+  }
+  if(start !== null) ranges.push([start,width]);
+  return ranges;
+}
+function computePatrolRange(col, pitRanges, width){
+  const isPit = c => pitRanges.some(([a,b])=>c>=a && c<b);
+  let minC = col, maxC = col;
+  while(minC-1 >= 0 && !isPit(minC-1)) minC--;
+  while(maxC+1 < width && !isPit(maxC+1)) maxC++;
+  return [minC, Math.max(maxC, minC+1)];
+}
+function buildDefFromEditor(){
+  const width = editorState.width;
+  const pitRanges = pitSetToRanges(editorState.pit, width);
+  const blocks = Object.keys(editorState.blocks).map(k=>{
+    const [c,r] = k.split(',').map(Number);
+    const b = editorState.blocks[k];
+    return b.powerupType ? [c,r,b.type,b.powerupType] : [c,r,b.type];
+  });
+  const pipes = editorState.pipes.map(p=>[p.col,p.row]);
+  const coins = Array.from(editorState.coins).map(k=>k.split(',').map(Number));
+  const enemies = editorState.enemies.map(e=>{
+    const [minC,maxC] = computePatrolRange(e.col, pitRanges, width);
+    return [e.col, e.row, minC, maxC, e.kind];
+  });
+  return {
+    name: editorState.name, width, time: editorState.time,
+    start: [editorState.startCol, GROUND_ROW],
+    flagCol: editorState.flagCol, flagRow: editorState.flagRow,
+    pits: pitRanges, blocks, pipes, coins, enemies
+  };
+}
+
+/* ---------------- persistence ---------------- */
+function getCustomLevels(){
+  try { return JSON.parse(localStorage.getItem('plumberBrosCustomLevels') || '[]'); }
+  catch(e){ return []; }
+}
+function setCustomLevels(levels){
+  localStorage.setItem('plumberBrosCustomLevels', JSON.stringify(levels));
+}
+function refreshLoadList(){
+  const sel = document.getElementById('f-load');
+  const levels = getCustomLevels();
+  sel.innerHTML = '<option value="">— select —</option>';
+  levels.forEach(lv=>{
+    const opt = document.createElement('option');
+    opt.value = lv.id; opt.textContent = lv.name;
+    sel.appendChild(opt);
+  });
+}
+function loadFromDef(def, id){
+  editorState = blankState();
+  editorState.name = def.name || 'My Level';
+  editorState.width = Math.max(12, Math.min(200, def.width || 40));
+  editorState.time = def.time || 120;
+  editorState.startCol = (def.start && def.start[0]) || 2;
+  editorState.flagCol = def.flagCol !== undefined ? def.flagCol : editorState.width-4;
+  editorState.flagRow = def.flagRow !== undefined ? def.flagRow : 3;
+  (def.pits||[]).forEach(([a,b])=>{ for(let c=a;c<b;c++) editorState.pit.add(c); });
+  (def.blocks||[]).forEach(([c,r,type,powerupType])=>{
+    editorState.blocks[key(c,r)] = powerupType ? {type,powerupType} : {type};
+  });
+  (def.pipes||[]).forEach(([c,r])=>{ editorState.pipes.push({col:c,row:r}); });
+  (def.coins||[]).forEach(([c,r])=>{ editorState.coins.add(key(c,r)); });
+  (def.enemies||[]).forEach(([c,r,minC,maxC,kind])=>{
+    editorState.enemies.push({col:c, row: kind==='bat' ? r : GROUND_ROW, kind: kind||'goomba'});
+  });
+  currentLevelId = id || null;
+  document.getElementById('f-name').value = editorState.name;
+  document.getElementById('f-width').value = editorState.width;
+  document.getElementById('f-time').value = editorState.time;
+  resizeCanvas();
+}
+
+function setStatus(msg, ok){
+  const el = document.getElementById('status');
+  el.textContent = msg;
+  el.className = ok ? 'ok' : '';
+}
+
+document.getElementById('f-name').addEventListener('input', e=>{ editorState.name = e.target.value || 'My Level'; });
+document.getElementById('f-time').addEventListener('input', e=>{ editorState.time = Math.max(30, Math.min(999, parseInt(e.target.value)||120)); });
+document.getElementById('f-width').addEventListener('change', e=>{
+  const newWidth = Math.max(12, Math.min(200, parseInt(e.target.value)||40));
+  editorState.width = newWidth;
+  editorState.pit = new Set(Array.from(editorState.pit).filter(c=>c<newWidth));
+  Object.keys(editorState.blocks).forEach(k=>{ if(Number(k.split(',')[0])>=newWidth) delete editorState.blocks[k]; });
+  editorState.pipes = editorState.pipes.filter(p=>p.col+1<newWidth);
+  editorState.coins = new Set(Array.from(editorState.coins).filter(k=>Number(k.split(',')[0])<newWidth));
+  editorState.enemies = editorState.enemies.filter(en=>en.col<newWidth);
+  editorState.startCol = Math.min(editorState.startCol, newWidth-3);
+  editorState.flagCol = Math.min(editorState.flagCol, newWidth-2);
+  e.target.value = newWidth;
+  resizeCanvas();
+});
+
+document.getElementById('btn-new').addEventListener('click', ()=>{
+  if(confirm('Start a new blank level? Unsaved changes will be lost.')) newLevel();
+});
+document.getElementById('btn-save').addEventListener('click', ()=>{
+  const def = buildDefFromEditor();
+  const levels = getCustomLevels();
+  if(!currentLevelId) currentLevelId = 'lvl_' + Date.now();
+  const idx = levels.findIndex(l=>l.id===currentLevelId);
+  const entry = {id:currentLevelId, name:def.name, def};
+  if(idx>=0) levels[idx] = entry; else levels.push(entry);
+  setCustomLevels(levels);
+  refreshLoadList();
+  document.getElementById('f-load').value = currentLevelId;
+  setStatus('Saved "' + def.name + '" ✓', true);
+});
+document.getElementById('btn-delete').addEventListener('click', ()=>{
+  if(!currentLevelId){ setStatus('Nothing to delete — this level was never saved.'); return; }
+  if(!confirm('Delete this saved level?')) return;
+  setCustomLevels(getCustomLevels().filter(l=>l.id!==currentLevelId));
+  refreshLoadList();
+  newLevel();
+  setStatus('Deleted.');
+});
+document.getElementById('f-load').addEventListener('change', e=>{
+  const id = e.target.value;
+  if(!id) return;
+  const lv = getCustomLevels().find(l=>l.id===id);
+  if(lv){ loadFromDef(lv.def, lv.id); setStatus('Loaded "' + lv.name + '"', true); }
+});
+document.getElementById('btn-playtest').addEventListener('click', ()=>{
+  const def = buildDefFromEditor();
+  if(def.pits.some(([a,b])=>editorState.startCol>=a && editorState.startCol<b)){
+    setStatus('⚠ Your start position is over a pit — move it before testing!');
+    return;
+  }
+  localStorage.setItem('plumberBrosPlaytest', JSON.stringify(def));
+  window.location.href = 'index.html';
+});
+document.getElementById('btn-home').addEventListener('click', ()=>{ scrollWrap.scrollLeft = 0; });
+document.getElementById('btn-end').addEventListener('click', ()=>{ scrollWrap.scrollLeft = canvas.width; });
+
+newLevel();
+refreshLoadList();
+requestAnimationFrame(render);
+
+})();
+</script>
+</body>
+</html>
