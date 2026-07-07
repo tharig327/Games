@@ -64,6 +64,7 @@ canvas{width:100%;height:auto;display:block;border-radius:8px;border:2px solid #
       ARROWS / WASD to move &amp; jump &middot; SPACE also jumps<br>
       DOWN to enter glowing pipes &middot; X to throw fireballs (fire form)<br>
       Stomp enemies from above &middot; grab coins &middot; reach the flag!<br>
+      Koopas kick into sliding shells &middot; Spinies can't be stomped &middot; Bats swoop!<br>
       Mushroom = grow big &middot; Flower = fireballs &middot; Star = invincible!<br>
       <span id="high-score-line" style="color:#ffd700"></span>
     </div>
@@ -259,6 +260,7 @@ function toggleMusic(){
 }
 
 /* ---------------- Level building ---------------- */
+const ENEMY_SPEED = {goomba:60, koopa:55, spiny:45, bat:70};
 function buildLevel(def){
   const rows = 12;
   const groundRow = 10;
@@ -285,9 +287,15 @@ function buildLevel(def){
   (def.coins||[]).forEach(([c,r])=>{
     coins.push({x:c*T+T/2, y:r*T+T/2, rad:9, taken:false});
   });
-  (def.enemies||[]).forEach(([c,r,minC,maxC])=>{
+  (def.enemies||[]).forEach(([c,r,minC,maxC,kind])=>{
     const ew=32, eh=32;
-    enemies.push({x:c*T, y:r*T-eh, w:ew, h:eh, dir:-1, alive:true, minX:minC*T, maxX:maxC*T-ew, speed:60, squash:0});
+    const k = kind || 'goomba';
+    enemies.push({
+      x:c*T, y:r*T-eh, w:ew, h:eh, dir:-1, alive:true,
+      minX:minC*T, maxX:maxC*T-ew, speed:ENEMY_SPEED[k], squash:0,
+      kind:k, shellState: k==='koopa' ? 'walking' : undefined,
+      baseY: r*T-eh, phase: Math.random()*Math.PI*2
+    });
   });
   return {
     name: def.name,
@@ -335,6 +343,51 @@ const LEVELS = [
     warpPipes:[[4,8,63,10]],
     coins:[[10,4],[25,4],[26,4],[40,8],[41,8],[45,3],[55,5],[56,4],[70,4],[71,4],[80,8],[81,8],[82,8],[15,8],[48,8]],
     enemies:[[14,10,10,17],[27,10,24,34],[39,10,38,50],[52,10,50,59],[68,10,64,74],[80,10,78,88]]
+  },
+  {
+    name:'1-4', width:80, time:130, start:[2,10], flagCol:78, flagRow:3,
+    pits:[[15,17],[40,43],[65,67]],
+    blocks:[
+      [8,7,'question','mushroom'],[9,7,'brick'],[25,6,'question','fireflower'],
+      [50,7,'brick'],[51,7,'brick'],[52,6,'brick'],[70,6,'question']
+    ],
+    pipes:[[20,7],[55,8]],
+    warpPipes:[[5,8,43,10]],
+    coins:[[8,4],[9,4],[25,3],[30,8],[31,8],[50,4],[51,4],[52,3],[60,8],[61,8],[70,3],[75,8],[76,8]],
+    enemies:[[12,10,10,14,'goomba'],[24,10,22,38,'koopa'],[45,10,44,53,'goomba'],[60,10,58,64,'koopa'],[70,10,68,76,'goomba']]
+  },
+  {
+    name:'1-5', width:85, time:140, start:[2,10], flagCol:83, flagRow:3,
+    pits:[[12,14],[30,33],[55,57],[70,73]],
+    blocks:[
+      [10,7,'question','mushroom'],[22,6,'brick'],[23,6,'brick'],[40,6,'question','star'],
+      [60,7,'brick'],[61,6,'brick'],[62,6,'question','fireflower'],[78,6,'brick']
+    ],
+    pipes:[[18,7],[45,8],[65,7]],
+    warpPipes:[[6,8,58,10]],
+    coins:[[10,4],[22,3],[23,3],[35,8],[36,8],[40,3],[50,8],[51,8],[60,4],[61,3],[62,4],[75,8],[76,8],[80,4]],
+    enemies:[
+      [16,10,14,17,'goomba'],[26,10,24,29,'spiny'],[37,10,35,44,'koopa'],
+      [54,7,47,60,'bat'],[66,10,64,69,'spiny'],[77,10,75,81,'koopa']
+    ]
+  },
+  {
+    name:'1-6', width:98, time:160, start:[2,10], flagCol:95, flagRow:2,
+    pits:[[10,12],[28,31],[45,48],[62,64],[80,83]],
+    blocks:[
+      [8,7,'question','mushroom'],[20,6,'brick'],[21,6,'brick'],[22,6,'question','fireflower'],
+      [35,7,'brick'],[36,6,'brick'],[37,5,'question'],[52,6,'question','mushroom'],
+      [70,6,'brick'],[71,6,'question','fireflower'],[86,5,'question','star'],
+      [90,9,'brick'],[91,8,'brick'],[91,9,'brick'],[92,7,'brick'],[92,8,'brick'],[92,9,'brick'],
+      [93,6,'brick'],[93,7,'brick'],[93,8,'brick'],[93,9,'brick']
+    ],
+    pipes:[[15,7],[40,8],[65,7]],
+    warpPipes:[[5,8,48,10]],
+    coins:[[8,4],[20,3],[21,3],[22,3],[35,4],[36,3],[37,2],[52,3],[70,3],[71,3],[86,2],[55,8],[56,8],[75,8],[76,8]],
+    enemies:[
+      [13,10,12,14,'goomba'],[22,10,18,26,'koopa'],[35,10,32,38,'spiny'],
+      [54,7,49,60,'bat'],[73,10,68,78,'koopa'],[85,10,83,88,'goomba']
+    ]
   }
 ];
 
@@ -462,6 +515,24 @@ function collectPowerup(item){
     player.starTimer = 9;
   }
   sfx.powerup();
+}
+
+function applyEnemyContactDamage(e){
+  if(player.starTimer > 0){
+    e.alive = false;
+    e.squash = 0.3;
+    score += 100;
+    popups.push({x:e.x+e.w/2, y:e.y, text:'+100', life:0.8});
+    sfx.stomp();
+  } else if(player.hurtInvuln > 0){
+    // mid-flicker invincibility after a recent hit, ignore contact
+  } else if(player.form !== 'small'){
+    setPlayerForm(player.form === 'fire' ? 'big' : 'small');
+    player.hurtInvuln = 1.6;
+    sfx.hurt();
+  } else {
+    die();
+  }
 }
 
 function die(){
@@ -737,35 +808,91 @@ function updatePlayer(dt){
   // enemies
   for(const e of level.enemies){
     if(!e.alive) continue;
-    e.x += e.dir*e.speed*dt;
-    if(e.x < e.minX){ e.x = e.minX; e.dir = 1; }
-    if(e.x > e.maxX){ e.x = e.maxX; e.dir = -1; }
     if(e.squash > 0) e.squash -= dt;
-    if(rectsOverlap(player,e)){
-      if(player.vy > 0 && (player.y+player.h) - e.y < 18){
+
+    if(e.kind === 'bat'){
+      e.phase += dt*3;
+      e.y = e.baseY + Math.sin(e.phase)*24;
+    }
+
+    const isIdleShell = e.kind === 'koopa' && e.shellState === 'idle';
+    const isSlidingShell = e.kind === 'koopa' && e.shellState === 'sliding';
+    if(!isIdleShell){
+      const spd = isSlidingShell ? 360 : e.speed;
+      const boundMinX = isSlidingShell ? 0 : e.minX;
+      const boundMaxX = isSlidingShell ? level.width - e.w : e.maxX;
+      e.x += e.dir*spd*dt;
+      if(e.x < boundMinX){ e.x = boundMinX; e.dir = 1; }
+      if(e.x > boundMaxX){ e.x = boundMaxX; e.dir = -1; }
+    }
+
+    if(e.kind === 'koopa' && e.shellState === 'sliding'){
+      for(const other of level.enemies){
+        if(other !== e && other.alive && rectsOverlap(e,other) &&
+           !(other.kind === 'koopa' && other.shellState === 'sliding')){
+          other.alive = false;
+          other.squash = 0.3;
+          score += 50;
+          popups.push({x:other.x+other.w/2, y:other.y, text:'+50', life:0.8});
+        }
+      }
+    }
+
+    if(!rectsOverlap(player,e)) continue;
+    const stompApproach = player.vy > 0 && (player.y+player.h) - e.y < 18;
+
+    if(e.kind === 'koopa' && e.shellState === 'walking'){
+      if(stompApproach){
+        e.shellState = 'idle';
+        player.vy = -520;
+        score += 100;
+        popups.push({x:e.x+e.w/2, y:e.y, text:'+100', life:0.8});
+        sfx.stomp();
+      } else {
+        applyEnemyContactDamage(e);
+      }
+    } else if(e.kind === 'koopa' && e.shellState === 'idle'){
+      if(player.starTimer > 0){
+        e.alive = false;
+        score += 100;
+        popups.push({x:e.x+e.w/2, y:e.y, text:'+100', life:0.8});
+        sfx.stomp();
+      } else {
+        e.shellState = 'sliding';
+        e.dir = player.x < e.x ? 1 : -1;
+        if(stompApproach) player.vy = -400;
+        score += 10;
+        popups.push({x:e.x+e.w/2, y:e.y, text:'+10', life:0.8});
+        sfx.bump();
+      }
+    } else if(e.kind === 'koopa' && e.shellState === 'sliding'){
+      if(stompApproach){
+        e.shellState = 'idle';
+        e.dir = 1;
+        player.vy = -520;
+        score += 50;
+        popups.push({x:e.x+e.w/2, y:e.y, text:'+50', life:0.8});
+        sfx.stomp();
+      } else {
+        applyEnemyContactDamage(e);
+      }
+    } else if(e.kind === 'spiny'){
+      // spiky top: never safe to stomp, always a hazard unless invincible
+      applyEnemyContactDamage(e);
+    } else {
+      if(stompApproach){
         e.alive = false;
         e.squash = 0.3;
         player.vy = -520;
         score += 100;
         popups.push({x:e.x+e.w/2, y:e.y, text:'+100', life:0.8});
         sfx.stomp();
-      } else if(player.starTimer > 0){
-        e.alive = false;
-        e.squash = 0.3;
-        score += 100;
-        popups.push({x:e.x+e.w/2, y:e.y, text:'+100', life:0.8});
-        sfx.stomp();
-      } else if(player.hurtInvuln > 0){
-        // mid-flicker invincibility after a recent hit, ignore contact
-      } else if(player.form !== 'small'){
-        setPlayerForm(player.form === 'fire' ? 'big' : 'small');
-        player.hurtInvuln = 1.6;
-        sfx.hurt();
       } else {
-        die();
-        return;
+        applyEnemyContactDamage(e);
       }
     }
+
+    if(state !== 'playing') return;
   }
 
   // coins
@@ -973,6 +1100,123 @@ function drawGoomba(e){
   }
 }
 
+function drawKoopa(e){
+  const x = e.x - camX, y = e.y;
+  if(!e.alive) return;
+  if(x+e.w < 0 || x > canvas.width) return;
+  const h = e.squash > 0 ? e.h*0.5 : e.h;
+  const yy = e.h - h + y;
+  const isShell = e.shellState === 'idle' || e.shellState === 'sliding';
+  if(isShell){
+    ctx.fillStyle = '#2ec97a';
+    ctx.beginPath();
+    ctx.ellipse(x+e.w/2, yy+h*0.6, e.w/2, h*0.4, 0, 0, Math.PI*2);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+    ctx.beginPath();
+    ctx.moveTo(x+e.w*0.15, yy+h*0.6); ctx.lineTo(x+e.w*0.85, yy+h*0.6);
+    ctx.moveTo(x+e.w*0.5, yy+h*0.2); ctx.lineTo(x+e.w*0.5, yy+h);
+    ctx.stroke();
+    if(e.shellState === 'sliding'){
+      ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+      ctx.lineWidth = 2;
+      const tailX = e.dir > 0 ? x-2 : x+e.w+2;
+      ctx.beginPath();
+      ctx.moveTo(tailX, yy+h*0.4); ctx.lineTo(tailX - e.dir*10, yy+h*0.4);
+      ctx.moveTo(tailX, yy+h*0.7); ctx.lineTo(tailX - e.dir*10, yy+h*0.7);
+      ctx.stroke();
+    }
+  } else {
+    ctx.fillStyle = '#2ec97a';
+    ctx.beginPath();
+    ctx.ellipse(x+e.w/2, yy+h*0.58, e.w/2, h*0.38, 0, 0, Math.PI*2);
+    ctx.fill();
+    ctx.fillStyle = '#ffe08a';
+    ctx.fillRect(x+e.w*0.18, yy+h*0.12, e.w*0.64, h*0.32);
+    ctx.fillStyle = '#1a1a1a';
+    ctx.beginPath();
+    ctx.arc(x+e.w*0.36, yy+h*0.26, 2.2, 0, Math.PI*2);
+    ctx.arc(x+e.w*0.64, yy+h*0.26, 2.2, 0, Math.PI*2);
+    ctx.fill();
+    ctx.fillStyle = '#1c8f52';
+    ctx.fillRect(x+2, yy+h*0.82, e.w-4, h*0.18);
+  }
+}
+
+function drawSpiny(e){
+  const x = e.x - camX, y = e.y;
+  if(!e.alive) return;
+  if(x+e.w < 0 || x > canvas.width) return;
+  const h = e.squash > 0 ? e.h*0.5 : e.h;
+  const yy = e.h - h + y;
+  ctx.fillStyle = '#7a3a2b';
+  ctx.beginPath();
+  ctx.ellipse(x+e.w/2, yy+h*0.58, e.w/2, h*0.4, 0, 0, Math.PI*2);
+  ctx.fill();
+  if(e.squash <= 0){
+    ctx.fillStyle = '#e63946';
+    for(let i=0;i<3;i++){
+      const sx = x + e.w*(0.18+i*0.32);
+      ctx.beginPath();
+      ctx.moveTo(sx, yy+h*0.3);
+      ctx.lineTo(sx-6, yy+h*0.05);
+      ctx.lineTo(sx+6, yy+h*0.05);
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.arc(x+e.w*0.35, yy+h*0.55, 4, 0, Math.PI*2);
+  ctx.arc(x+e.w*0.65, yy+h*0.55, 4, 0, Math.PI*2);
+  ctx.fill();
+  ctx.fillStyle = '#1a1a1a';
+  ctx.beginPath();
+  ctx.arc(x+e.w*0.35, yy+h*0.58, 2, 0, Math.PI*2);
+  ctx.arc(x+e.w*0.65, yy+h*0.58, 2, 0, Math.PI*2);
+  ctx.fill();
+}
+
+function drawBat(e){
+  const x = e.x - camX, y = e.y;
+  if(!e.alive) return;
+  if(x+e.w < 0 || x > canvas.width) return;
+  const h = e.squash > 0 ? e.h*0.5 : e.h;
+  const yy = e.h - h + y;
+  const wingFlap = Math.sin(performance.now()/90)*7;
+  ctx.fillStyle = '#5b3a7a';
+  if(e.squash <= 0){
+    ctx.beginPath();
+    ctx.moveTo(x+e.w*0.5-4, yy+h*0.5);
+    ctx.lineTo(x-8, yy+h*0.35-wingFlap);
+    ctx.lineTo(x+e.w*0.25, yy+h*0.65);
+    ctx.closePath();
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(x+e.w*0.5+4, yy+h*0.5);
+    ctx.lineTo(x+e.w+8, yy+h*0.35-wingFlap);
+    ctx.lineTo(x+e.w*0.75, yy+h*0.65);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.beginPath();
+  ctx.ellipse(x+e.w/2, yy+h*0.5, e.w*0.32, h*0.3, 0, 0, Math.PI*2);
+  ctx.fill();
+  ctx.fillStyle = '#ff3860';
+  ctx.beginPath();
+  ctx.arc(x+e.w*0.4, yy+h*0.45, 2, 0, Math.PI*2);
+  ctx.arc(x+e.w*0.6, yy+h*0.45, 2, 0, Math.PI*2);
+  ctx.fill();
+}
+
+function drawEnemy(e){
+  if(!e.alive) return;
+  if(e.kind === 'koopa') drawKoopa(e);
+  else if(e.kind === 'spiny') drawSpiny(e);
+  else if(e.kind === 'bat') drawBat(e);
+  else drawGoomba(e);
+}
+
 function drawPowerup(item){
   const x = item.x - camX, y = item.y;
   if(!item.alive) return;
@@ -1137,7 +1381,7 @@ function render(){
     drawFlag();
     level.coins.forEach(drawCoin);
     level.powerups.forEach(drawPowerup);
-    level.enemies.forEach(drawGoomba);
+    level.enemies.forEach(drawEnemy);
     level.fireballs.forEach(drawFireball);
     if(player) drawPlayer();
     drawPopups();
