@@ -86,6 +86,7 @@ canvas{display:block;touch-action:none;cursor:crosshair;}
         <button class="tool-btn" data-tool="qmushroom"><span class="ic">🍄</span>MUSHROOM</button>
         <button class="tool-btn" data-tool="qfire"><span class="ic">🔥</span>FIRE</button>
         <button class="tool-btn" data-tool="qstar"><span class="ic">⭐</span>STAR</button>
+        <button class="tool-btn" data-tool="qbounce"><span class="ic">🏐</span>BOUNCE</button>
         <button class="tool-btn" data-tool="pipe"><span class="ic">🟩</span>PIPE</button>
       </div>
       <div class="tool-group">
@@ -159,6 +160,7 @@ function toolToBlock(tool){
   if(tool === 'qmushroom') return {type:'question', powerupType:'mushroom'};
   if(tool === 'qfire') return {type:'question', powerupType:'fireflower'};
   if(tool === 'qstar') return {type:'question', powerupType:'star'};
+  if(tool === 'qbounce') return {type:'question', powerupType:'bounceball'};
   return null;
 }
 function pipeAt(col,row){
@@ -170,7 +172,7 @@ function removePipesAt(col,row){
     return !spans;
   });
 }
-const BLOCK_TOOLS = ['brick','qcoin','qmushroom','qfire','qstar'];
+const BLOCK_TOOLS = ['brick','qcoin','qmushroom','qfire','qstar','qbounce'];
 const ENEMY_TOOLS = ['goomba','koopa','spiny','bat'];
 
 function isOccupied(col,row){
@@ -293,7 +295,7 @@ function drawBlock(col,row,b){
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText('?', x+T/2, y+T/2+1);
     if(b.powerupType){
-      const letter = b.powerupType==='mushroom' ? 'M' : b.powerupType==='fireflower' ? 'F' : 'S';
+      const letter = b.powerupType==='mushroom' ? 'M' : b.powerupType==='fireflower' ? 'F' : b.powerupType==='bounceball' ? 'B' : 'S';
       ctx.fillStyle = '#e63946';
       ctx.font = 'bold 10px monospace';
       ctx.fillText(letter, x+T-8, y+9);
