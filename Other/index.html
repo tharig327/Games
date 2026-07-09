@@ -304,11 +304,12 @@ const MUSIC_TRACKS = {
   underwater: 'music/underwater.mp3',
   desert: 'music/desert.mp3',
   ice: 'music/ice.mp3',
+  level2: 'music/level2.mp3',
   level6: 'music/level6.mp3',
   menu: 'music/levelselect.mp3'
 };
 // world 1-1..1-6 each get a themed track; anything beyond falls back to the procedural chiptune
-const LEVEL_TRACK_BY_IDX = ['overworld','underground','underwater','desert','ice','level6'];
+const LEVEL_TRACK_BY_IDX = ['overworld','level2','underwater','desert','ice','level6'];
 const trackAudioCache = {};
 let currentTrackKey = null, currentTrackEl = null;
 
