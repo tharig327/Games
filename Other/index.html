@@ -985,12 +985,15 @@ window.addEventListener('keydown', e=>{
   if(e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') keys.right = true;
   if(e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W' || e.key === ' '){
     keys.jump = true;
-    if(state === 'title') startGame();
+    if(state === 'title'){
+      if(keys.right) openDevMenu();
+      else startGame();
+    }
   }
   if(e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') keys.down = true;
   if(e.key === 'x' || e.key === 'X') keys.fire = true;
   if(e.key === 'p' || e.key === 'P' || e.key === 'Escape') togglePause();
-  if(state === 'title' && e.shiftKey && (e.key === 'D' || e.key === 'd')){ renderDevList(); setOverlay('ov-dev'); }
+  if(state === 'title' && e.shiftKey && (e.key === 'D' || e.key === 'd')) openDevMenu();
 });
 window.addEventListener('keyup', e=>{
   if(e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') keys.left = false;
@@ -1006,9 +1009,11 @@ function bindHold(el, onDown, onUp){
   el.addEventListener('pointerleave', e=>{ onUp(); });
   el.addEventListener('pointercancel', e=>{ onUp(); });
 }
+function openDevMenu(){ renderDevList(); setOverlay('ov-dev'); }
+function checkDevCombo(){ if(state === 'title' && keys.right && keys.jump) openDevMenu(); }
 bindHold(document.getElementById('left-btn'), ()=>keys.left=true, ()=>keys.left=false);
-bindHold(document.getElementById('right-btn'), ()=>keys.right=true, ()=>keys.right=false);
-bindHold(document.getElementById('jump-btn'), ()=>{keys.jump=true;}, ()=>keys.jump=false);
+bindHold(document.getElementById('right-btn'), ()=>{keys.right=true; checkDevCombo();}, ()=>keys.right=false);
+bindHold(document.getElementById('jump-btn'), ()=>{keys.jump=true; checkDevCombo();}, ()=>keys.jump=false);
 document.getElementById('action-btn').addEventListener('pointerdown', e=>{
   e.preventDefault();
   ensureAudio();
