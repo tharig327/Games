@@ -36,9 +36,11 @@ canvas{width:100%;height:auto;display:block;border-radius:8px;border:2px solid #
 #action-btn:active{background:rgba(255,180,0,0.55);}
 .pause-btn-fixed{position:absolute;top:8px;right:8px;z-index:15;background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.3);color:#fff;border-radius:6px;padding:6px 10px;font-family:monospace;font-size:12px;cursor:pointer;}
 .music-btn-fixed{position:absolute;top:8px;left:8px;z-index:15;background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.3);color:#fff;border-radius:6px;padding:6px 10px;font-family:monospace;font-size:12px;cursor:pointer;}
-.fullscreen-btn-fixed{position:absolute;top:8px;left:50%;transform:translateX(-50%);z-index:15;background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.3);color:#fff;border-radius:6px;padding:6px 10px;font-family:monospace;font-size:12px;cursor:pointer;}
 @media (min-width:640px){
   #controls{display:none;}
+}
+@media (max-width:639px){
+  #canvas-wrap{min-height:720px;}
 }
 </style>
 </head>
@@ -56,7 +58,6 @@ canvas{width:100%;height:auto;display:block;border-radius:8px;border:2px solid #
   <canvas id="canvas" width="800" height="480"></canvas>
   <button class="pause-btn-fixed" id="pause-btn">⏸ PAUSE</button>
   <button class="music-btn-fixed" id="music-btn">🎵 ON</button>
-  <button class="fullscreen-btn-fixed" id="fullscreen-btn">⛶ FULLSCREEN</button>
 
   <div class="overlay" id="ov-title">
     <div class="title-big">PLUMBER BROS</div>
@@ -65,7 +66,7 @@ canvas{width:100%;height:auto;display:block;border-radius:8px;border:2px solid #
     <div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap;justify-content:center;">
       <button class="menu-btn alt" id="mylevels-btn" style="margin-top:0;padding:10px 18px;font-size:12px;">📋 MY LEVELS</button>
       <button class="menu-btn alt" id="editor-btn" style="margin-top:0;padding:10px 18px;font-size:12px;background:linear-gradient(135deg,#7b5800,#4a3600);">🛠 LEVEL EDITOR</button>
-      <button class="menu-btn alt" id="dev-btn" style="margin-top:0;padding:10px 18px;font-size:12px;background:linear-gradient(135deg,#555,#222);">🧪 DEV: JUMP TO LEVEL</button>
+      <button class="menu-btn alt" id="dev-btn" style="display:none;margin-top:0;padding:10px 18px;font-size:12px;background:linear-gradient(135deg,#555,#222);">🧪 DEV: JUMP TO LEVEL</button>
     </div>
     <div class="info">
       ARROWS / WASD to move &amp; jump &middot; SPACE also jumps<br>
@@ -76,6 +77,9 @@ canvas{width:100%;height:auto;display:block;border-radius:8px;border:2px solid #
       Bounce Ball = knock enemies away, they die when they land!<br>
       Blue Block = ride a critter! Tramples enemies, one free hit from spikes<br>
       <span id="high-score-line" style="color:#ffd700"></span>
+      <div style="margin-top:14px;">
+        <button class="menu-btn alt" id="fullscreen-btn" style="margin-top:0;padding:8px 16px;font-size:12px;min-width:0;">⛶ FULLSCREEN</button>
+      </div>
     </div>
   </div>
 
@@ -981,11 +985,15 @@ window.addEventListener('keydown', e=>{
   if(e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') keys.right = true;
   if(e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W' || e.key === ' '){
     keys.jump = true;
-    if(state === 'title') startGame();
+    if(state === 'title'){
+      if(keys.right) openDevMenu();
+      else startGame();
+    }
   }
   if(e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') keys.down = true;
   if(e.key === 'x' || e.key === 'X') keys.fire = true;
   if(e.key === 'p' || e.key === 'P' || e.key === 'Escape') togglePause();
+  if(state === 'title' && e.shiftKey && (e.key === 'D' || e.key === 'd')) openDevMenu();
 });
 window.addEventListener('keyup', e=>{
   if(e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') keys.left = false;
@@ -1001,9 +1009,11 @@ function bindHold(el, onDown, onUp){
   el.addEventListener('pointerleave', e=>{ onUp(); });
   el.addEventListener('pointercancel', e=>{ onUp(); });
 }
+function openDevMenu(){ renderDevList(); setOverlay('ov-dev'); }
+function checkDevCombo(){ if(state === 'title' && keys.right && keys.jump) openDevMenu(); }
 bindHold(document.getElementById('left-btn'), ()=>keys.left=true, ()=>keys.left=false);
-bindHold(document.getElementById('right-btn'), ()=>keys.right=true, ()=>keys.right=false);
-bindHold(document.getElementById('jump-btn'), ()=>{keys.jump=true;}, ()=>keys.jump=false);
+bindHold(document.getElementById('right-btn'), ()=>{keys.right=true; checkDevCombo();}, ()=>keys.right=false);
+bindHold(document.getElementById('jump-btn'), ()=>{keys.jump=true; checkDevCombo();}, ()=>keys.jump=false);
 document.getElementById('action-btn').addEventListener('pointerdown', e=>{
   e.preventDefault();
   ensureAudio();
