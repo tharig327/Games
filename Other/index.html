@@ -71,6 +71,7 @@ canvas{width:100%;height:auto;display:block;border-radius:8px;border:2px solid #
       Koopas kick into sliding shells &middot; Spinies can't be stomped &middot; Bats swoop!<br>
       Mushroom = grow big &middot; Flower = fireballs &middot; Star = invincible!<br>
       Bounce Ball = knock enemies away, they die when they land!<br>
+      Blue Block = ride a critter! Tramples enemies, one free hit from spikes<br>
       <span id="high-score-line" style="color:#ffd700"></span>
     </div>
   </div>
@@ -472,7 +473,7 @@ const LEVELS = [
     name:'1-3', width:90, time:150, start:[2,10], flagCol:89, flagRow:2,
     pits:[[18,20],[35,38],[60,62],[75,78]],
     blocks:[
-      [10,7,'question','mushroom'],[25,7,'brick'],[26,7,'brick'],[45,6,'question','fireflower'],
+      [10,7,'question','mushroom'],[25,7,'brick'],[26,7,'brick'],[33,6,'question','mount'],[45,6,'question','fireflower'],
       [55,7,'brick'],[56,6,'brick'],[56,7,'brick'],[70,7,'brick'],[71,7,'brick'],[82,5,'question','star'],
       [84,9,'brick'],[85,8,'brick'],[85,9,'brick'],[86,7,'brick'],[86,8,'brick'],[86,9,'brick'],
       [87,6,'brick'],[87,7,'brick'],[87,8,'brick'],[87,9,'brick']
@@ -611,10 +612,11 @@ function circleRectOverlap(c,r){
   return dx*dx+dy*dy < c.rad*c.rad;
 }
 
-function loadLevel(idx, carryForm){
+function loadLevel(idx, carryForm, carryMounted){
   level = buildLevel(activeLevels[idx]);
-  player = {x:level.start.x, y:level.start.y, w:30, h:42, vx:0, vy:0, onGround:false, facing:1, alive:true, form:'small', starTimer:0, hurtInvuln:0};
+  player = {x:level.start.x, y:level.start.y, w:30, h:42, vx:0, vy:0, onGround:false, facing:1, alive:true, form:'small', starTimer:0, hurtInvuln:0, mounted:false};
   if(carryForm && carryForm !== 'small') setPlayerForm(carryForm);
+  if(carryMounted) player.mounted = true;
   camX = 0;
   timeLeft = level.timeLimit;
   playerAlpha = 1;
@@ -792,7 +794,7 @@ function spawnPowerupFromBlock(p){
 function collectPowerup(item){
   item.alive = false;
   score += 200;
-  const label = item.type === 'star' ? 'STAR!' : item.type === 'fireflower' ? 'FIRE!' : item.type === 'bounceball' ? 'BOUNCE!' : 'BIG!';
+  const label = item.type === 'star' ? 'STAR!' : item.type === 'fireflower' ? 'FIRE!' : item.type === 'bounceball' ? 'BOUNCE!' : item.type === 'mount' ? 'GIDDY UP!' : 'BIG!';
   popups.push({x:item.x+item.w/2, y:item.y, text:label, life:1.0});
   if(item.type === 'mushroom'){
     if(player.form === 'small') setPlayerForm('big');
@@ -800,6 +802,8 @@ function collectPowerup(item){
     setPlayerForm('fire');
   } else if(item.type === 'bounceball'){
     setPlayerForm('bounce');
+  } else if(item.type === 'mount'){
+    player.mounted = true;
   } else if(item.type === 'star'){
     player.starTimer = 9;
     if(currentTrackEl) stopTrack();
@@ -818,6 +822,20 @@ function applyEnemyContactDamage(e){
     sfx.stomp();
   } else if(player.hurtInvuln > 0){
     // mid-flicker invincibility after a recent hit, ignore contact
+  } else if(player.mounted){
+    if(e.kind === 'spiny'){
+      // spikes still buck the rider off, but they keep their form and don't die
+      player.mounted = false;
+      player.hurtInvuln = 1.6;
+      sfx.hurt();
+    } else {
+      // the mount tramples anything else on contact, no need to stomp from above
+      e.alive = false;
+      e.squash = 0.3;
+      score += 100;
+      popups.push({x:e.x+e.w/2, y:e.y, text:'+100', life:0.8});
+      sfx.stomp();
+    }
   } else if(player.form !== 'small'){
     setPlayerForm(player.form === 'fire' ? 'big' : 'small');
     player.hurtInvuln = 1.6;
@@ -877,7 +895,7 @@ function nextLevelOrWin(){
     document.getElementById('win-high').textContent = 'BEST: ' + getHighScore();
     setOverlay('ov-win');
   } else {
-    loadLevel(currentLevelIdx, player.form);
+    loadLevel(currentLevelIdx, player.form, player.mounted);
     state = 'playing';
     setOverlay(null);
   }
@@ -1024,16 +1042,17 @@ function updatePlayer(dt){
   const onIce = level.theme === 'ice' && player.onGround;
   const accel = onIce ? MOVE_ACCEL*0.35 : MOVE_ACCEL;
   const fric = onIce ? FRICTION*0.12 : FRICTION;
+  const maxSpeed = player.mounted ? MAX_SPEED*1.2 : MAX_SPEED;
   if(keys.left && !keys.right){ player.vx -= accel*dt; player.facing = -1; }
   else if(keys.right && !keys.left){ player.vx += accel*dt; player.facing = 1; }
   else {
     if(player.vx > 0) player.vx = Math.max(0, player.vx - fric*dt);
     else if(player.vx < 0) player.vx = Math.min(0, player.vx + fric*dt);
   }
-  player.vx = Math.max(-MAX_SPEED, Math.min(MAX_SPEED, player.vx));
+  player.vx = Math.max(-maxSpeed, Math.min(maxSpeed, player.vx));
 
   if(keys.jump && !jumpHeld && player.onGround){
-    player.vy = JUMP_VELOCITY;
+    player.vy = player.mounted ? JUMP_VELOCITY*1.12 : JUMP_VELOCITY;
     player.onGround = false;
     sfx.jump();
   }
@@ -1487,7 +1506,7 @@ function drawPlatform(p){
     ctx.moveTo(x+2,y+p.h/2); ctx.lineTo(x+p.w-2,y+p.h/2);
     ctx.stroke();
   } else if(p.type === 'question'){
-    ctx.fillStyle = p.used ? '#8a7250' : '#f7b500';
+    ctx.fillStyle = p.used ? '#8a7250' : (p.powerupType === 'mount' ? '#2f8fd1' : '#f7b500');
     ctx.fillRect(x,y,p.w,p.h);
     ctx.strokeStyle = 'rgba(0,0,0,0.35)';
     ctx.strokeRect(x+2,y+2,p.w-4,p.h-4);
@@ -1754,6 +1773,29 @@ function drawPowerup(item){
     ctx.moveTo(x+item.w/2-9, y+item.h*0.32+bob);
     ctx.lineTo(x+item.w/2+9, y+item.h*0.32+bob);
     ctx.stroke();
+  } else if(item.type === 'mount'){
+    const cx = x+item.w/2, cy = y+item.h*0.55;
+    ctx.fillStyle = '#8a5fc9';
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, item.w*0.42, item.h*0.32, 0, 0, Math.PI*2);
+    ctx.fill();
+    ctx.fillStyle = '#f0a838';
+    ctx.beginPath();
+    ctx.arc(cx-4, cy-2, 3, 0, Math.PI*2);
+    ctx.arc(cx+5, cy+3, 2.5, 0, Math.PI*2);
+    ctx.fill();
+    ctx.fillStyle = '#8a5fc9';
+    ctx.beginPath();
+    ctx.arc(cx+item.w*0.3, y+item.h*0.32, 7, 0, Math.PI*2);
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(cx+item.w*0.34, y+item.h*0.30, 2, 0, Math.PI*2);
+    ctx.fill();
+    ctx.fillStyle = '#3a2450';
+    ctx.beginPath();
+    ctx.arc(cx+item.w*0.35, y+item.h*0.30, 1, 0, Math.PI*2);
+    ctx.fill();
   }
 }
 
@@ -1813,6 +1855,59 @@ function drawFlag(){
   ctx.fill();
 }
 
+function drawMount(w, h, legPhase){
+  const legKick = legPhase*5;
+  const bodyTop = h*0.4, bodyBot = h*0.92;
+  const bodyCX = w*0.5, bodyCY = (bodyTop+bodyBot)/2;
+  // legs (stubby, kick alternately while running)
+  ctx.fillStyle = '#6b4aa0';
+  ctx.fillRect(-6, bodyBot-6, 7, 14 + Math.max(0,legKick));
+  ctx.fillRect(w*0.7, bodyBot-6, 7, 14 + Math.max(0,-legKick));
+  ctx.fillRect(-2, bodyBot-2, 7, 14 + Math.max(0,-legKick));
+  ctx.fillRect(w*0.6, bodyBot-2, 7, 14 + Math.max(0,legKick));
+  // tail
+  ctx.strokeStyle = '#6b4aa0';
+  ctx.lineWidth = 5;
+  ctx.beginPath();
+  ctx.moveTo(-4, bodyCY);
+  ctx.quadraticCurveTo(-16, bodyTop-2, -12, bodyTop-10);
+  ctx.stroke();
+  // body
+  ctx.fillStyle = '#8a5fc9';
+  ctx.beginPath();
+  ctx.ellipse(bodyCX, bodyCY, w*0.62, (bodyBot-bodyTop)/2, 0, 0, Math.PI*2);
+  ctx.fill();
+  // spots
+  ctx.fillStyle = '#f0a838';
+  ctx.beginPath();
+  ctx.arc(bodyCX-w*0.2, bodyCY-3, 4, 0, Math.PI*2);
+  ctx.arc(bodyCX+w*0.05, bodyCY+5, 3.4, 0, Math.PI*2);
+  ctx.arc(bodyCX+w*0.32, bodyCY-2, 3.6, 0, Math.PI*2);
+  ctx.fill();
+  // saddle
+  ctx.fillStyle = '#7a3a2a';
+  ctx.fillRect(w*0.12, bodyTop-1, w*0.76, 6);
+  // head + snout, facing right
+  ctx.fillStyle = '#8a5fc9';
+  ctx.beginPath();
+  ctx.arc(w*0.92, bodyTop+4, 9, 0, Math.PI*2);
+  ctx.fill();
+  ctx.fillRect(w*0.95, bodyTop, 12, 8);
+  // ear
+  ctx.beginPath();
+  ctx.ellipse(w*0.86, bodyTop-6, 4, 7, -0.4, 0, Math.PI*2);
+  ctx.fill();
+  // eye
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.arc(w*0.95, bodyTop+2, 2.6, 0, Math.PI*2);
+  ctx.fill();
+  ctx.fillStyle = '#2a1a3a';
+  ctx.beginPath();
+  ctx.arc(w*0.96, bodyTop+2, 1.3, 0, Math.PI*2);
+  ctx.fill();
+}
+
 function drawPlayer(){
   if(player.hurtInvuln > 0 && Math.floor(performance.now()/80) % 2 === 0) return;
   const x = player.x - camX, y = player.y, w = player.w, h = player.h;
@@ -1823,6 +1918,10 @@ function drawPlayer(){
   ctx.translate(-w/2, 0);
 
   const legPhase = player.onGround && Math.abs(player.vx) > 5 ? Math.sin(runCycle) : 0;
+
+  if(player.mounted) drawMount(w, h, legPhase);
+  ctx.save();
+  if(player.mounted) ctx.translate(0, -h*0.3);
   const legOffset = legPhase*6;
 
   let overallsColor = '#274690';
@@ -1878,6 +1977,7 @@ function drawPlayer(){
   ctx.fillStyle = '#1a1a1a';
   ctx.fillRect(w*0.62, h*0.16, 4, 4);
 
+  ctx.restore();
   ctx.restore();
 }
 
