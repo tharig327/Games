@@ -354,6 +354,16 @@ function playJingle(key){
   const el = jingleCache[key];
   try{ el.currentTime = 0; }catch(e){}
   el.volume = 0.5;
+
+  // duck whatever background music is playing, then resume it once the jingle ends
+  const trackWasPlaying = currentTrackEl && !currentTrackEl.paused;
+  const proceduralWasPlaying = musicRunning && musicGain && musicGain.gain.value > 0;
+  if(trackWasPlaying) currentTrackEl.pause();
+  if(proceduralWasPlaying) musicGain.gain.value = 0;
+  el.onended = () => {
+    if(trackWasPlaying && currentTrackEl && musicEnabled && state !== 'paused') currentTrackEl.play().catch(()=>{});
+    if(proceduralWasPlaying && musicGain && musicEnabled && state !== 'paused') musicGain.gain.value = 0.16;
+  };
   el.play().catch(()=>{});
 }
 function playMusicForContext(){
