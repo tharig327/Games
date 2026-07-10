@@ -66,6 +66,7 @@ canvas{width:100%;height:auto;display:block;border-radius:8px;border:2px solid #
     <div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap;justify-content:center;">
       <button class="menu-btn alt" id="mylevels-btn" style="margin-top:0;padding:10px 18px;font-size:12px;">📋 MY LEVELS</button>
       <button class="menu-btn alt" id="editor-btn" style="margin-top:0;padding:10px 18px;font-size:12px;background:linear-gradient(135deg,#7b5800,#4a3600);">🛠 LEVEL EDITOR</button>
+      <button class="menu-btn alt" id="settings-btn" style="margin-top:0;padding:10px 18px;font-size:12px;background:linear-gradient(135deg,#3a6b3a,#1e401e);">⚙ SETTINGS</button>
       <button class="menu-btn alt" id="dev-btn" style="display:none;margin-top:0;padding:10px 18px;font-size:12px;background:linear-gradient(135deg,#555,#222);">🧪 DEV: JUMP TO LEVEL</button>
     </div>
     <div class="info">
@@ -76,6 +77,7 @@ canvas{width:100%;height:auto;display:block;border-radius:8px;border:2px solid #
       Mushroom = grow big &middot; Flower = fireballs &middot; Star = invincible!<br>
       Bounce Ball = knock enemies away, they die when they land!<br>
       Blue Block = ride a critter! Tramples enemies, one free hit from spikes<br>
+      Green Block = ride a dino pal! Same trample powers, different look<br>
       <span id="high-score-line" style="color:#ffd700"></span>
       <div style="margin-top:14px;">
         <button class="menu-btn alt" id="fullscreen-btn" style="margin-top:0;padding:8px 16px;font-size:12px;min-width:0;">⛶ FULLSCREEN</button>
@@ -93,6 +95,26 @@ canvas{width:100%;height:auto;display:block;border-radius:8px;border:2px solid #
     <div class="big-msg">DEV: JUMP TO LEVEL</div>
     <div id="dev-list" style="width:100%;max-width:480px;display:flex;flex-direction:column;gap:8px;overflow-y:auto;max-height:320px;margin:8px 0;"></div>
     <button class="menu-btn alt" id="dev-back-btn">⏹ BACK</button>
+  </div>
+
+  <div class="overlay hidden" id="ov-settings">
+    <div class="big-msg">SETTINGS</div>
+    <div style="width:100%;max-width:420px;display:flex;flex-direction:column;gap:16px;margin:8px 0;">
+      <div style="background:#151a2e;border:1px solid #2a3352;border-radius:8px;padding:12px 14px;text-align:left;">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+          <div>
+            <div style="color:#fff;font-size:13px;font-weight:bold;">EASY MODE</div>
+            <div style="color:#7fa8ff;font-size:10px;margin-top:2px;">auto-jumps over gaps and enemies for you</div>
+          </div>
+          <button class="menu-btn alt" id="easymode-btn" style="margin:0;padding:8px 14px;font-size:11px;min-width:0;">OFF</button>
+        </div>
+      </div>
+      <div style="background:#151a2e;border:1px solid #2a3352;border-radius:8px;padding:12px 14px;text-align:left;">
+        <div style="color:#fff;font-size:13px;font-weight:bold;">ENEMY AMOUNT: <span id="enemy-density-label" style="color:#ffd700;">100%</span></div>
+        <input type="range" id="enemy-density-slider" min="0" max="150" step="25" value="100" style="width:100%;margin-top:8px;">
+      </div>
+    </div>
+    <button class="menu-btn alt" id="settings-back-btn">⏹ BACK</button>
   </div>
 
   <div class="overlay hidden" id="ov-pause">
@@ -429,13 +451,18 @@ function buildLevel(def){
   (def.enemies||[]).forEach(([c,r,minC,maxC,kind])=>{
     const ew=32, eh=32;
     const k = kind || 'goomba';
-    enemies.push({
-      x:c*T, y:r*T-eh, w:ew, h:eh, dir:-1, alive:true,
+    const makeEnemy = (cc) => ({
+      x:cc*T, y:r*T-eh, w:ew, h:eh, dir:-1, alive:true,
       minX:minC*T, maxX:maxC*T-ew, speed:ENEMY_SPEED[k], squash:0,
       kind:k, shellState: k==='koopa' ? 'walking' : undefined,
       baseY: r*T-eh, phase: Math.random()*Math.PI*2,
       vy:0, stunned:false, stunTimer:0
     });
+    if(Math.random()*100 < enemyDensityPct) enemies.push(makeEnemy(c));
+    if(enemyDensityPct > 100 && Math.random()*100 < (enemyDensityPct-100)){
+      const altC = Math.max(minC, Math.min(maxC-1, c + (Math.random()<0.5 ? -2 : 2)));
+      enemies.push(makeEnemy(altC));
+    }
   });
   return {
     name: def.name,
@@ -467,7 +494,7 @@ const LEVELS = [
   {
     name:'1-1', width:60, time:100, start:[2,10], flagCol:57, flagRow:3,
     pits:[[34,37]],
-    blocks:[[10,7,'question','mushroom'],[11,7,'brick'],[12,7,'question'],[13,7,'brick'],[22,6,'brick'],[46,6,'question','fireflower']],
+    blocks:[[10,7,'question','mushroom'],[11,7,'brick'],[12,7,'question'],[13,7,'brick'],[22,6,'brick'],[28,6,'question','dino'],[46,6,'question','fireflower']],
     pipes:[[16,8],[42,7]],
     warpPipes:[{enter:[7,8], toUnderworld:'uw1'}],
     coins:[[10,4],[11,4],[12,4],[13,4],[5,8],[6,8],[25,8],[26,8],[27,8],[50,8],[51,8],[52,8]],
@@ -609,11 +636,16 @@ let runCycle = 0;
 const keys = {left:false, right:false, jump:false, down:false, fire:false};
 let jumpHeld = false, downHeld = false, fireHeld = false;
 let fireCooldown = 0;
+let easyJumpCooldown = 0;
+let autoJumpActive = false;
 let popups = []; // {x,y,text,life}
 const FORM_HEIGHTS = {small:42, big:58, fire:58, bounce:58};
 let warpDest = null, warpPhase = '', warpTimer = 0, playerAlpha = 1;
 let inUnderworld = false, savedOverworldLevel = null;
 let activeLevels = LEVELS, customPlayMode = false;
+let easyMode = localStorage.getItem('plumberBrosEasyMode') === '1';
+let enemyDensityPct = parseInt(localStorage.getItem('plumberBrosEnemyDensity') || '100', 10);
+if(!Number.isFinite(enemyDensityPct)) enemyDensityPct = 100;
 
 function rectsOverlap(a,b){
   return a.x < b.x+b.w && a.x+a.w > b.x && a.y < b.y+b.h && a.y+a.h > b.y;
@@ -626,7 +658,7 @@ function circleRectOverlap(c,r){
 }
 
 function initPlayerForLevel(){
-  player = {x:level.start.x, y:level.start.y, w:30, h:42, vx:0, vy:0, onGround:false, facing:1, alive:true, form:'small', starTimer:0, hurtInvuln:0, mounted:false};
+  player = {x:level.start.x, y:level.start.y, w:30, h:42, vx:0, vy:0, onGround:false, facing:1, alive:true, form:'small', starTimer:0, hurtInvuln:0, mounted:false, mountKind:null};
   camX = 0;
   timeLeft = level.timeLimit;
   playerAlpha = 1;
@@ -634,13 +666,13 @@ function initPlayerForLevel(){
   playMusicForContext();
 }
 
-function loadLevel(idx, carryForm, carryMounted){
+function loadLevel(idx, carryForm, carryMounted, carryMountKind){
   level = buildLevel(activeLevels[idx]);
   inUnderworld = false;
   savedOverworldLevel = null;
   initPlayerForLevel();
   if(carryForm && carryForm !== 'small') setPlayerForm(carryForm);
-  if(carryMounted) player.mounted = true;
+  if(carryMounted){ player.mounted = true; player.mountKind = carryMountKind || 'critter'; }
 }
 
 function devWarpToLevel(idx){
@@ -858,7 +890,7 @@ function spawnPowerupFromBlock(p){
 function collectPowerup(item){
   item.alive = false;
   score += 200;
-  const label = item.type === 'star' ? 'STAR!' : item.type === 'fireflower' ? 'FIRE!' : item.type === 'bounceball' ? 'BOUNCE!' : item.type === 'mount' ? 'GIDDY UP!' : 'BIG!';
+  const label = item.type === 'star' ? 'STAR!' : item.type === 'fireflower' ? 'FIRE!' : item.type === 'bounceball' ? 'BOUNCE!' : (item.type === 'mount' || item.type === 'dino') ? 'GIDDY UP!' : 'BIG!';
   popups.push({x:item.x+item.w/2, y:item.y, text:label, life:1.0});
   if(item.type === 'mushroom'){
     if(player.form === 'small') setPlayerForm('big');
@@ -868,6 +900,10 @@ function collectPowerup(item){
     setPlayerForm('bounce');
   } else if(item.type === 'mount'){
     player.mounted = true;
+    player.mountKind = 'critter';
+  } else if(item.type === 'dino'){
+    player.mounted = true;
+    player.mountKind = 'dino';
   } else if(item.type === 'star'){
     player.starTimer = 9;
     if(currentTrackEl) stopTrack();
@@ -959,7 +995,7 @@ function nextLevelOrWin(){
     document.getElementById('win-high').textContent = 'BEST: ' + getHighScore();
     setOverlay('ov-win');
   } else {
-    loadLevel(currentLevelIdx, player.form, player.mounted);
+    loadLevel(currentLevelIdx, player.form, player.mounted, player.mountKind);
     state = 'playing';
     setOverlay(null);
   }
@@ -1051,6 +1087,25 @@ document.getElementById('mylevels-btn').addEventListener('click', ()=>{ ensureAu
 document.getElementById('mylevels-back-btn').addEventListener('click', ()=>{ setOverlay('ov-title'); });
 document.getElementById('dev-btn').addEventListener('click', ()=>{ ensureAudio(); renderDevList(); setOverlay('ov-dev'); });
 document.getElementById('dev-back-btn').addEventListener('click', ()=>{ setOverlay('ov-title'); });
+document.getElementById('settings-btn').addEventListener('click', ()=>{ ensureAudio(); refreshSettingsUI(); setOverlay('ov-settings'); });
+document.getElementById('settings-back-btn').addEventListener('click', ()=>{ setOverlay('ov-title'); });
+document.getElementById('easymode-btn').addEventListener('click', ()=>{
+  easyMode = !easyMode;
+  localStorage.setItem('plumberBrosEasyMode', easyMode ? '1' : '0');
+  refreshSettingsUI();
+});
+document.getElementById('enemy-density-slider').addEventListener('input', e=>{
+  enemyDensityPct = parseInt(e.target.value, 10);
+  localStorage.setItem('plumberBrosEnemyDensity', String(enemyDensityPct));
+  document.getElementById('enemy-density-label').textContent = enemyDensityPct + '%';
+});
+function refreshSettingsUI(){
+  const btn = document.getElementById('easymode-btn');
+  btn.textContent = easyMode ? 'ON' : 'OFF';
+  btn.style.background = easyMode ? 'linear-gradient(135deg,#3fae3f,#1e5c1e)' : '';
+  document.getElementById('enemy-density-slider').value = enemyDensityPct;
+  document.getElementById('enemy-density-label').textContent = enemyDensityPct + '%';
+}
 document.getElementById('resume-btn').addEventListener('click', togglePause);
 document.getElementById('restart-level-btn').addEventListener('click', ()=>{ loadLevel(currentLevelIdx); state='playing'; setOverlay(null); if(musicGain) musicGain.gain.value = musicEnabled ? 0.16 : 0; });
 document.getElementById('quit-btn').addEventListener('click', ()=>{ activeLevels = LEVELS; customPlayMode = false; state='title'; setOverlay('ov-title'); refreshHighScoreLine(); stopMusic(); stopTrack(); playTrack('menu'); });
@@ -1114,6 +1169,28 @@ window.addEventListener('keydown', unlockMenuMusicOnce);
 })();
 
 /* ---------------- Update ---------------- */
+function hasGroundAt(x){
+  return level.platforms.some(p => p.type === 'ground' && x >= p.x && x < p.x + p.w);
+}
+function wallAheadAt(x){
+  const footY = player.y + player.h - 4;
+  return level.platforms.some(p => p.type === 'pipe' && x >= p.x && x < p.x + p.w && footY >= p.y && footY < p.y + p.h);
+}
+function easyModeShouldJump(){
+  if(!easyMode || !player.onGround || easyJumpCooldown > 0) return false;
+  if(!(keys.left || keys.right)) return false;
+  const dir = keys.right ? 1 : -1;
+  const edgeX = player.x + (dir>0 ? player.w+16 : -16);
+  if(!hasGroundAt(edgeX)) return true;
+  const wallX = player.x + (dir>0 ? player.w+40 : -40);
+  if(wallAheadAt(wallX)) return true;
+  for(const e of level.enemies){
+    if(!e.alive || e.stunned) continue;
+    const ex = e.x + e.w/2, px = player.x + player.w/2;
+    if(Math.sign(ex-px) === dir && Math.abs(ex-px) < 70) return true;
+  }
+  return false;
+}
 function updatePlayer(dt){
   if(player.hurtInvuln > 0) player.hurtInvuln -= dt;
   if(player.starTimer > 0){
@@ -1125,6 +1202,7 @@ function updatePlayer(dt){
     }
   }
   if(fireCooldown > 0) fireCooldown -= dt;
+  if(easyJumpCooldown > 0) easyJumpCooldown -= dt;
 
   const downPressed = keys.down && !downHeld;
   downHeld = keys.down;
@@ -1152,12 +1230,15 @@ function updatePlayer(dt){
   }
   player.vx = Math.max(-maxSpeed, Math.min(maxSpeed, player.vx));
 
-  if(keys.jump && !jumpHeld && player.onGround){
-    player.vy = player.mounted ? JUMP_VELOCITY*1.12 : JUMP_VELOCITY;
+  const autoJump = easyModeShouldJump();
+  if((keys.jump && !jumpHeld && player.onGround) || autoJump){
+    player.vy = autoJump ? JUMP_VELOCITY*1.4 : (player.mounted ? JUMP_VELOCITY*1.12 : JUMP_VELOCITY);
     player.onGround = false;
     sfx.jump();
+    if(autoJump){ easyJumpCooldown = 0.6; autoJumpActive = true; }
   }
-  if(!keys.jump && player.vy < JUMP_CUT) player.vy = JUMP_CUT;
+  if(player.onGround) autoJumpActive = false;
+  if(!keys.jump && !autoJumpActive && player.vy < JUMP_CUT) player.vy = JUMP_CUT;
   jumpHeld = keys.jump;
 
   player.vy += GRAVITY*dt;
@@ -1607,7 +1688,7 @@ function drawPlatform(p){
     ctx.moveTo(x+2,y+p.h/2); ctx.lineTo(x+p.w-2,y+p.h/2);
     ctx.stroke();
   } else if(p.type === 'question'){
-    ctx.fillStyle = p.used ? '#8a7250' : (p.powerupType === 'mount' ? '#2f8fd1' : '#f7b500');
+    ctx.fillStyle = p.used ? '#8a7250' : (p.powerupType === 'mount' ? '#2f8fd1' : p.powerupType === 'dino' ? '#4fae2f' : '#f7b500');
     ctx.fillRect(x,y,p.w,p.h);
     ctx.strokeStyle = 'rgba(0,0,0,0.35)';
     ctx.strokeRect(x+2,y+2,p.w-4,p.h-4);
@@ -1897,6 +1978,29 @@ function drawPowerup(item){
     ctx.beginPath();
     ctx.arc(cx+item.w*0.35, y+item.h*0.30, 1, 0, Math.PI*2);
     ctx.fill();
+  } else if(item.type === 'dino'){
+    const cx = x+item.w/2, cy = y+item.h*0.55;
+    ctx.fillStyle = '#4fae2f';
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, item.w*0.42, item.h*0.32, 0, 0, Math.PI*2);
+    ctx.fill();
+    ctx.fillStyle = '#fdf6e3';
+    ctx.beginPath();
+    ctx.ellipse(cx, cy+3, item.w*0.24, item.h*0.16, 0, 0, Math.PI*2);
+    ctx.fill();
+    ctx.fillStyle = '#4fae2f';
+    ctx.beginPath();
+    ctx.arc(cx+item.w*0.3, y+item.h*0.3, 7, 0, Math.PI*2);
+    ctx.fill();
+    ctx.fillRect(cx+item.w*0.34, y+item.h*0.28, 8, 5);
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(cx+item.w*0.32, y+item.h*0.26, 2, 0, Math.PI*2);
+    ctx.fill();
+    ctx.fillStyle = '#1a1a1a';
+    ctx.beginPath();
+    ctx.arc(cx+item.w*0.33, y+item.h*0.26, 1, 0, Math.PI*2);
+    ctx.fill();
   }
 }
 
@@ -2009,6 +2113,69 @@ function drawMount(w, h, legPhase){
   ctx.fill();
 }
 
+function drawDinoMount(w, h, legPhase){
+  const legKick = legPhase*5;
+  const bodyTop = h*0.32, bodyBot = h*0.94;
+  const bodyCX = w*0.5, bodyCY = (bodyTop+bodyBot)/2 + 4;
+  // legs (upright stance)
+  ctx.fillStyle = '#3f9a2a';
+  ctx.fillRect(2, bodyBot-6, 10, 16 + Math.max(0,legKick));
+  ctx.fillRect(w*0.55, bodyBot-6, 10, 16 + Math.max(0,-legKick));
+  // tail
+  ctx.strokeStyle = '#3f9a2a';
+  ctx.lineWidth = 7;
+  ctx.beginPath();
+  ctx.moveTo(0, bodyCY+6);
+  ctx.quadraticCurveTo(-14, bodyCY+2, -10, bodyCY-14);
+  ctx.stroke();
+  // body
+  ctx.fillStyle = '#4fae2f';
+  ctx.beginPath();
+  ctx.ellipse(bodyCX, bodyCY, w*0.56, (bodyBot-bodyTop)/2, 0, 0, Math.PI*2);
+  ctx.fill();
+  // belly patch
+  ctx.fillStyle = '#fdf6e3';
+  ctx.beginPath();
+  ctx.ellipse(bodyCX, bodyCY+6, w*0.32, (bodyBot-bodyTop)*0.3, 0, 0, Math.PI*2);
+  ctx.fill();
+  // back spikes
+  ctx.fillStyle = '#e6394b';
+  for(let i=0;i<3;i++){
+    ctx.beginPath();
+    ctx.moveTo(w*(0.25+i*0.14), bodyTop+2);
+    ctx.lineTo(w*(0.29+i*0.14), bodyTop-6);
+    ctx.lineTo(w*(0.33+i*0.14), bodyTop+2);
+    ctx.closePath();
+    ctx.fill();
+  }
+  // saddle blanket
+  ctx.fillStyle = '#e6394b';
+  ctx.fillRect(w*0.1, bodyTop+2, w*0.8, 6);
+  // head + snout, facing right
+  ctx.fillStyle = '#4fae2f';
+  ctx.beginPath();
+  ctx.arc(w*0.9, bodyTop-2, 11, 0, Math.PI*2);
+  ctx.fill();
+  ctx.fillRect(w*0.95, bodyTop-6, 14, 9);
+  // nostril
+  ctx.fillStyle = '#2a6b1a';
+  ctx.beginPath();
+  ctx.arc(w*1.03, bodyTop-1, 1.4, 0, Math.PI*2);
+  ctx.fill();
+  // eye
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.arc(w*0.92, bodyTop-7, 3.2, 0, Math.PI*2);
+  ctx.fill();
+  ctx.fillStyle = '#1a1a1a';
+  ctx.beginPath();
+  ctx.arc(w*0.93, bodyTop-7, 1.6, 0, Math.PI*2);
+  ctx.fill();
+  // arm
+  ctx.fillStyle = '#4fae2f';
+  ctx.fillRect(w*0.7, bodyCY-2, 5, 10);
+}
+
 function drawPlayer(){
   if(player.hurtInvuln > 0 && Math.floor(performance.now()/80) % 2 === 0) return;
   const x = player.x - camX, y = player.y, w = player.w, h = player.h;
@@ -2020,7 +2187,10 @@ function drawPlayer(){
 
   const legPhase = player.onGround && Math.abs(player.vx) > 5 ? Math.sin(runCycle) : 0;
 
-  if(player.mounted) drawMount(w, h, legPhase);
+  if(player.mounted){
+    if(player.mountKind === 'dino') drawDinoMount(w, h, legPhase);
+    else drawMount(w, h, legPhase);
+  }
   ctx.save();
   if(player.mounted) ctx.translate(0, -h*0.3);
   const legOffset = legPhase*6;
@@ -2083,10 +2253,14 @@ function drawPlayer(){
 }
 
 function drawPopups(){
-  ctx.font = 'bold 13px monospace';
+  ctx.font = 'bold 22px monospace';
   ctx.textAlign = 'center';
   popups.forEach(p=>{
-    ctx.fillStyle = `rgba(255,215,0,${Math.max(0,p.life/0.8)})`;
+    const alpha = Math.max(0,p.life/0.8);
+    ctx.strokeStyle = `rgba(0,0,0,${alpha*0.8})`;
+    ctx.lineWidth = 3;
+    ctx.strokeText(p.text, p.x - camX, p.y);
+    ctx.fillStyle = `rgba(255,215,0,${alpha})`;
     ctx.fillText(p.text, p.x - camX, p.y);
   });
 }
