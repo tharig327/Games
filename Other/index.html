@@ -184,6 +184,12 @@ const PLAYER_SPRITES = {};
     });
   });
 });
+const MOUNT_SPRITES = {};
+['idle','run1','run2'].forEach(pose=>{
+  const img = new Image();
+  img.src = `sprites/yoshi_${pose}.png`;
+  MOUNT_SPRITES['yoshi_'+pose] = img;
+});
 
 /* ---------------- Audio ---------------- */
 let audioCtx = null;
@@ -2150,82 +2156,12 @@ function drawMount(w, h, legPhase){
 }
 
 function drawDinoMount(w, h, legPhase){
-  const legKick = legPhase*5;
-  const bodyTop = h*0.36, bodyBot = h*0.92;
-  const bodyCX = w*0.46, bodyCY = (bodyTop+bodyBot)/2 + 5;
-  const green = '#3aa832', greenDark = '#2c8226';
-  // tail, curls out the back
-  ctx.strokeStyle = green;
-  ctx.lineWidth = 7;
-  ctx.lineCap = 'round';
-  ctx.beginPath();
-  ctx.moveTo(-2, bodyCY+8);
-  ctx.quadraticCurveTo(-18, bodyCY+4, -13, bodyCY-16);
-  ctx.stroke();
-  // legs, chunky with round orange shoe tips
-  ctx.fillStyle = green;
-  ctx.fillRect(w*0.06, bodyBot-8, 11, 16 + Math.max(0,legKick));
-  ctx.fillRect(w*0.58, bodyBot-8, 11, 16 + Math.max(0,-legKick));
-  ctx.fillStyle = '#f2811f';
-  ctx.beginPath();
-  ctx.ellipse(w*0.115, bodyBot+8+Math.max(0,legKick), 7, 4.5, 0, 0, Math.PI*2);
-  ctx.ellipse(w*0.635, bodyBot+8+Math.max(0,-legKick), 7, 4.5, 0, 0, Math.PI*2);
-  ctx.fill();
-  // body, big rounded blob
-  ctx.fillStyle = green;
-  ctx.beginPath();
-  ctx.ellipse(bodyCX, bodyCY, w*0.66, (bodyBot-bodyTop)/2, 0, 0, Math.PI*2);
-  ctx.fill();
-  // cream belly, large and low
-  ctx.fillStyle = '#fdf6e3';
-  ctx.beginPath();
-  ctx.ellipse(bodyCX+w*0.02, bodyCY+8, w*0.4, (bodyBot-bodyTop)*0.34, 0, 0, Math.PI*2);
-  ctx.fill();
-  // back spikes/ridge
-  ctx.fillStyle = '#e6394b';
-  for(let i=0;i<3;i++){
-    ctx.beginPath();
-    ctx.moveTo(w*(0.2+i*0.13), bodyTop+3);
-    ctx.lineTo(w*(0.24+i*0.13), bodyTop-6);
-    ctx.lineTo(w*(0.28+i*0.13), bodyTop+3);
-    ctx.closePath();
-    ctx.fill();
-  }
-  // saddle strap
-  ctx.fillStyle = '#7a3a2a';
-  ctx.fillRect(w*0.08, bodyTop+3, w*0.7, 6);
-  // head, big and round
-  const headCX = w*1.05, headCY = bodyTop+3;
-  ctx.fillStyle = green;
-  ctx.beginPath();
-  ctx.arc(headCX, headCY, 12.5, 0, Math.PI*2);
-  ctx.fill();
-  // big rounded snout with lighter tip
-  ctx.fillStyle = green;
-  ctx.beginPath();
-  ctx.ellipse(headCX+11, headCY+3, 10, 7.5, 0, 0, Math.PI*2);
-  ctx.fill();
-  ctx.fillStyle = '#dff0c8';
-  ctx.beginPath();
-  ctx.ellipse(headCX+16, headCY+4, 5.5, 5, 0, 0, Math.PI*2);
-  ctx.fill();
-  // nostril
-  ctx.fillStyle = greenDark;
-  ctx.beginPath();
-  ctx.ellipse(headCX+18, headCY+2, 1.5, 2.2, 0.3, 0, Math.PI*2);
-  ctx.fill();
-  // big yoshi eye: white oval, black pupil high up near the snout
-  ctx.fillStyle = '#fff';
-  ctx.beginPath();
-  ctx.ellipse(headCX+4, headCY-6, 5, 6, -0.15, 0, Math.PI*2);
-  ctx.fill();
-  ctx.fillStyle = '#1a1a1a';
-  ctx.beginPath();
-  ctx.arc(headCX+5.5, headCY-5, 2.4, 0, Math.PI*2);
-  ctx.fill();
-  // small arm
-  ctx.fillStyle = green;
-  ctx.fillRect(w*0.72, bodyCY-2, 5, 10);
+  const pose = legPhase === 0 ? 'idle' : (legPhase >= 0 ? 'run1' : 'run2');
+  const sprite = MOUNT_SPRITES['yoshi_'+pose];
+  if(!(sprite && sprite.complete && sprite.naturalWidth > 0)) return;
+  const drawW = w*1.65;
+  const drawH = drawW * (sprite.naturalHeight/sprite.naturalWidth);
+  ctx.drawImage(sprite, -w*0.35, h-drawH, drawW, drawH);
 }
 
 function drawPlayer(){
