@@ -169,7 +169,21 @@ canvas{width:100%;height:auto;display:block;border-radius:8px;border:2px solid #
 
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
+ctx.imageSmoothingEnabled = false;
 const T = 40;
+
+/* ---------------- Player sprites (pixel art) ---------------- */
+const PLAYER_SPRITES = {};
+['mario','luigi'].forEach(ch=>{
+  ['small','big','fire','bounce'].forEach(form=>{
+    ['idle','run1','run2','jump'].forEach(pose=>{
+      const key = `${ch}_${form}_${pose}`;
+      const img = new Image();
+      img.src = `sprites/${key}.png`;
+      PLAYER_SPRITES[key] = img;
+    });
+  });
+});
 
 /* ---------------- Audio ---------------- */
 let audioCtx = null;
@@ -656,7 +670,6 @@ let easyMode = localStorage.getItem('plumberBrosEasyMode') === '1';
 let enemyDensityPct = parseInt(localStorage.getItem('plumberBrosEnemyDensity') || '100', 10);
 if(!Number.isFinite(enemyDensityPct)) enemyDensityPct = 100;
 let selectedCharacter = localStorage.getItem('plumberBrosCharacter') === 'luigi' ? 'luigi' : 'mario';
-const CHAR_COLORS = { mario: '#e63946', luigi: '#1a8f5a' };
 
 function rectsOverlap(a,b){
   return a.x < b.x+b.w && a.x+a.w > b.x && a.y < b.y+b.h && a.y+a.h > b.y;
@@ -2232,161 +2245,18 @@ function drawPlayer(){
   }
   ctx.save();
   if(player.mounted) ctx.translate(0, -h*0.3);
-  const legOffset = legPhase*6;
 
-  const capLetter = selectedCharacter === 'luigi' ? 'L' : 'M';
-  let overallsColor = '#274690';
-  let shirtColor = CHAR_COLORS[selectedCharacter] || CHAR_COLORS.mario;
-  if(player.starTimer > 0){
-    const hue = (performance.now()/6) % 360;
-    overallsColor = `hsl(${hue},80%,45%)`;
-    shirtColor = `hsl(${(hue+120)%360},80%,55%)`;
-  } else if(player.form === 'fire'){
-    overallsColor = '#ffffff';
-  } else if(player.form === 'bounce'){
-    overallsColor = '#1c8f8f';
-    shirtColor = '#f7b500';
+  const pose = !player.onGround ? 'jump' : (Math.abs(player.vx) > 5 ? (Math.sin(runCycle) >= 0 ? 'run1' : 'run2') : 'idle');
+  const spriteKey = `${selectedCharacter}_${player.form}_${pose}`;
+  const sprite = PLAYER_SPRITES[spriteKey];
+  if(sprite && sprite.complete && sprite.naturalWidth > 0){
+    if(player.starTimer > 0){
+      const hue = (performance.now()/6) % 360;
+      ctx.filter = `hue-rotate(${hue}deg) saturate(1.6)`;
+    }
+    ctx.drawImage(sprite, 0, 0, w, h);
+    ctx.filter = 'none';
   }
-  const skinColor = '#f4c28c';
-  const shade = c => { // darken a hex color for shading
-    const n = parseInt(c.slice(1),16), r=(n>>16)&255, g=(n>>8)&255, b=n&255;
-    return `rgb(${Math.round(r*0.72)},${Math.round(g*0.72)},${Math.round(b*0.72)})`;
-  };
-  ctx.strokeStyle = '#1a1214';
-  ctx.lineWidth = 1.3;
-  ctx.lineJoin = 'round';
-
-  // shoes: chunky wedge with a heel and a highlight
-  ctx.fillStyle = '#4a2f1e';
-  [ -1, w*0.62 ].forEach((sx,i)=>{
-    ctx.beginPath();
-    ctx.moveTo(sx-1, h-11);
-    ctx.lineTo(sx+13, h-11);
-    ctx.lineTo(sx+13, h-3);
-    ctx.quadraticCurveTo(sx+13, h+1, sx+8, h+1);
-    ctx.lineTo(sx-1, h+1);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-  });
-  ctx.fillStyle = '#6b4530';
-  ctx.fillRect(-1, h-11, 12, 3);
-  ctx.fillRect(w*0.62, h-11, 12, 3);
-
-  // legs
-  ctx.fillStyle = overallsColor;
-  ctx.fillRect(2, h-16, 10, 8 - Math.max(0,legOffset));
-  ctx.fillRect(w-12, h-16, 10, 8 + Math.max(0,-legOffset));
-  ctx.strokeRect(2, h-16, 10, 8 - Math.max(0,legOffset));
-  ctx.strokeRect(w-12, h-16, 10, 8 + Math.max(0,-legOffset));
-
-  // overalls body, with a darker shaded side for depth
-  ctx.fillStyle = overallsColor;
-  ctx.fillRect(2, h*0.45, w-4, h*0.36);
-  ctx.fillStyle = shade(overallsColor);
-  ctx.fillRect(2, h*0.45, w*0.22, h*0.36);
-  ctx.strokeStyle = '#1a1214';
-  ctx.strokeRect(2, h*0.45, w-4, h*0.36);
-
-  // shirt/sleeves
-  ctx.fillStyle = shirtColor;
-  ctx.fillRect(-2, h*0.32, w+4, h*0.2);
-  ctx.strokeRect(-2, h*0.32, w+4, h*0.2);
-  ctx.fillRect(-4, h*0.36, 6, h*0.22);
-  ctx.fillRect(w-2, h*0.36, 6, h*0.22);
-  ctx.strokeRect(-4, h*0.36, 6, h*0.22);
-  ctx.strokeRect(w-2, h*0.36, 6, h*0.22);
-
-  // gloves
-  ctx.fillStyle = '#fff';
-  ctx.beginPath();
-  ctx.arc(-1, h*0.58, 4.2, 0, Math.PI*2);
-  ctx.fill(); ctx.stroke();
-  ctx.beginPath();
-  ctx.arc(w+1, h*0.58, 4.2, 0, Math.PI*2);
-  ctx.fill(); ctx.stroke();
-
-  // overalls straps + buttons
-  ctx.strokeStyle = shade(overallsColor);
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.moveTo(w*0.3, h*0.33); ctx.lineTo(w*0.3, h*0.47);
-  ctx.moveTo(w*0.7, h*0.33); ctx.lineTo(w*0.7, h*0.47);
-  ctx.stroke();
-  ctx.strokeStyle = '#1a1214';
-  ctx.lineWidth = 1.3;
-  ctx.fillStyle = '#ffd700';
-  ctx.beginPath();
-  ctx.arc(w*0.3, h*0.47, 2.3, 0, Math.PI*2);
-  ctx.arc(w*0.7, h*0.47, 2.3, 0, Math.PI*2);
-  ctx.fill(); ctx.stroke();
-
-  // head, rounder
-  ctx.fillStyle = skinColor;
-  ctx.beginPath();
-  ctx.ellipse(w*0.5, h*0.21, w*0.52, h*0.155, 0, 0, Math.PI*2);
-  ctx.fill(); ctx.stroke();
-
-  // sideburn/hair peeking from under the cap at the back
-  ctx.fillStyle = '#3d2416';
-  ctx.beginPath();
-  ctx.ellipse(w*0.16, h*0.22, 3.4, 5, 0.2, 0, Math.PI*2);
-  ctx.fill();
-
-  // ear
-  ctx.fillStyle = skinColor;
-  ctx.beginPath();
-  ctx.arc(w*0.26, h*0.24, 3, 0, Math.PI*2);
-  ctx.fill(); ctx.stroke();
-
-  // nose bump, facing right
-  ctx.beginPath();
-  ctx.arc(w*0.87, h*0.22, 4, 0, Math.PI*2);
-  ctx.fill(); ctx.stroke();
-
-  // mustache under the nose
-  ctx.fillStyle = '#4a2f20';
-  ctx.beginPath();
-  ctx.ellipse(w*0.68, h*0.31, 7, 3, 0, 0, Math.PI*2);
-  ctx.fill(); ctx.stroke();
-
-  // eye: white plus black pupil
-  ctx.fillStyle = '#fff';
-  ctx.beginPath();
-  ctx.ellipse(w*0.66, h*0.16, 3.4, 3, 0, 0, Math.PI*2);
-  ctx.fill();
-  ctx.fillStyle = '#1a1a1a';
-  ctx.beginPath();
-  ctx.arc(w*0.68, h*0.165, 2, 0, Math.PI*2);
-  ctx.fill();
-
-  // cap dome + brim
-  ctx.fillStyle = shirtColor;
-  ctx.beginPath();
-  ctx.arc(w*0.42, h*0.1, w*0.52, Math.PI, Math.PI*2);
-  ctx.fill();
-  ctx.stroke();
-  ctx.fillRect(-w*0.02, h*0.08, w*0.88, h*0.06);
-  ctx.strokeRect(-w*0.02, h*0.08, w*0.88, h*0.06);
-  ctx.fillRect(w*0.55, h*0.12, w*0.55, h*0.055);
-  ctx.strokeRect(w*0.55, h*0.12, w*0.55, h*0.055);
-  // cap emblem, counter-flipped so the letter always reads upright
-  ctx.save();
-  ctx.translate(w*0.28, h*0.06);
-  ctx.scale(player.facing, 1);
-  ctx.fillStyle = '#fff';
-  ctx.beginPath();
-  ctx.arc(0, 0, 3.8, 0, Math.PI*2);
-  ctx.fill();
-  ctx.strokeStyle = '#1a1214';
-  ctx.lineWidth = 1;
-  ctx.stroke();
-  ctx.fillStyle = shirtColor;
-  ctx.font = 'bold 7px monospace';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(capLetter, 0, 0.5);
-  ctx.restore();
 
   ctx.restore();
   ctx.restore();
