@@ -1,0 +1,1038 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rocket Rotation — Tyler's Games</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Space+Grotesk:wght@400;500;700&display=swap');
+
+  :root{
+    --bg: #0B0E14;
+    --panel: #151A24;
+    --panel-line: #232A38;
+    --p1: #FF3864;
+    --p2: #2DE1C2;
+    --text: #E8ECF1;
+    --muted: #5B6472;
+  }
+
+  *{ box-sizing: border-box; }
+
+  html, body{
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Space Grotesk', sans-serif;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  #gameCanvas{
+    position: fixed;
+    inset: 0;
+    display: block;
+  }
+
+  .pixel{ font-family: 'Press Start 2P', monospace; }
+
+  /* ---------- HUD ---------- */
+  #hud{
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 18px 22px;
+    pointer-events: none;
+    z-index: 20;
+  }
+
+  .score-pill{
+    background: rgba(21,26,36,0.82);
+    border: 1px solid var(--panel-line);
+    border-radius: 6px;
+    padding: 10px 16px;
+    min-width: 120px;
+    text-align: center;
+    backdrop-filter: blur(4px);
+  }
+
+  .score-pill .who{ font-size: 9px; letter-spacing: 2px; color: var(--muted); margin-bottom: 6px; }
+  .score-pill.p1 .who{ color: var(--p1); }
+  .score-pill.p2 .who{ color: var(--p2); }
+  .score-pill .num{ font-size: 26px; }
+
+  #modeBox{
+    background: rgba(21,26,36,0.82);
+    border: 1px solid var(--panel-line);
+    border-radius: 6px;
+    padding: 10px 20px;
+    text-align: center;
+    backdrop-filter: blur(4px);
+  }
+  #modeBox .lbl{ font-size: 8px; letter-spacing: 2px; color: var(--muted); margin-bottom: 6px; }
+  #modeBox .mode-name{ font-size: 14px; letter-spacing: 1px; }
+  #modeBox .mode-name.soccer{ color: #6FE3A0; }
+  #modeBox .mode-name.basketball{ color: #FFA33E; }
+  #modeBox .mode-name.football{ color: #7FB8FF; }
+
+  #boostWrap{
+    position: fixed;
+    bottom: 22px;
+    left: 22px;
+    width: 220px;
+    z-index: 20;
+    pointer-events: none;
+  }
+  #boostWrap .lbl{ font-size: 9px; letter-spacing: 2px; color: var(--muted); margin-bottom: 6px; }
+  #boostBarOuter{
+    height: 14px;
+    border: 1px solid var(--panel-line);
+    border-radius: 4px;
+    background: rgba(21,26,36,0.82);
+    overflow: hidden;
+  }
+  #boostBarInner{
+    height: 100%;
+    width: 100%;
+    background: linear-gradient(90deg, var(--p1), #FF9E3E);
+    transition: width 0.1s linear;
+  }
+
+  #controlsHint{
+    position: fixed;
+    bottom: 22px;
+    right: 22px;
+    z-index: 20;
+    background: rgba(21,26,36,0.7);
+    border: 1px solid var(--panel-line);
+    border-radius: 6px;
+    padding: 10px 14px;
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 1.7;
+    text-align: right;
+    pointer-events: none;
+  }
+  #controlsHint b{ color: var(--text); }
+
+  /* ---------- Banner ---------- */
+  #banner{
+    position: fixed;
+    top: 40%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0.85);
+    z-index: 30;
+    text-align: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease, transform 0.25s ease;
+  }
+  #banner.show{
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  #banner .goal-text{
+    font-size: clamp(28px, 6vw, 54px);
+    letter-spacing: 4px;
+    color: var(--p1);
+    text-shadow: 0 0 18px rgba(255,56,100,0.6);
+    margin-bottom: 14px;
+  }
+  #banner .next-mode{
+    font-size: 13px;
+    letter-spacing: 2px;
+    color: var(--text);
+  }
+  #banner .next-mode span{ color: var(--p2); }
+
+  /* ---------- Start / End overlays ---------- */
+  .overlay{
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    background: radial-gradient(ellipse at center, rgba(21,26,36,0.96) 0%, rgba(11,14,20,0.98) 100%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 24px;
+  }
+  .overlay.hidden{ display: none; }
+
+  .overlay .eyebrow{
+    font-size: 9px;
+    letter-spacing: 3px;
+    color: var(--muted);
+    margin-bottom: 16px;
+    animation: blink 1.6s steps(1) infinite;
+  }
+  @keyframes blink{ 0%,49%{opacity:1;} 50%,100%{opacity:0.25;} }
+
+  .overlay h1{
+    font-size: clamp(20px, 5vw, 34px);
+    line-height: 1.7;
+    margin: 0 0 18px;
+    letter-spacing: 2px;
+    text-shadow: 0 0 14px rgba(255,56,100,0.35), 0 0 24px rgba(45,225,194,0.15);
+  }
+
+  .overlay .desc{
+    max-width: 560px;
+    font-size: 14px;
+    color: var(--muted);
+    line-height: 1.7;
+    margin-bottom: 28px;
+  }
+
+  .mode-chips{
+    display: flex;
+    gap: 14px;
+    margin-bottom: 34px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .mode-chip{
+    border: 1px solid var(--panel-line);
+    background: var(--panel);
+    border-radius: 6px;
+    padding: 10px 16px;
+    font-size: 10px;
+    letter-spacing: 1px;
+  }
+  .mode-chip.soccer{ color: #6FE3A0; border-color: #2c4a3a; }
+  .mode-chip.basketball{ color: #FFA33E; border-color: #4a3a24; }
+  .mode-chip.football{ color: #7FB8FF; border-color: #24384a; }
+
+  .key-row{
+    display: flex;
+    gap: 22px;
+    margin-bottom: 34px;
+    flex-wrap: wrap;
+    justify-content: center;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .key-row kbd{
+    display: inline-block;
+    border: 1px solid var(--panel-line);
+    border-bottom-width: 3px;
+    border-radius: 4px;
+    padding: 3px 8px;
+    background: var(--panel);
+    color: var(--text);
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 12px;
+    margin-right: 4px;
+  }
+
+  .btn{
+    font-family: 'Press Start 2P', monospace;
+    font-size: 13px;
+    letter-spacing: 1px;
+    background: var(--p1);
+    color: #0B0E14;
+    border: none;
+    border-radius: 6px;
+    padding: 16px 34px;
+    cursor: pointer;
+    box-shadow: 0 0 22px rgba(255,56,100,0.45);
+    transition: transform 0.15s ease;
+  }
+  .btn:hover{ transform: translateY(-3px); }
+
+  .back-link{
+    position: fixed;
+    top: 18px;
+    left: 18px;
+    z-index: 60;
+    font-size: 11px;
+    color: var(--muted);
+    text-decoration: none;
+    background: rgba(21,26,36,0.7);
+    border: 1px solid var(--panel-line);
+    border-radius: 5px;
+    padding: 7px 12px;
+  }
+  .back-link:hover{ color: var(--text); }
+
+  #finalScore{ font-size: 15px; margin-bottom: 26px; color: var(--text); }
+  #finalScore .win{ color: var(--p2); }
+  #finalScore .lose{ color: var(--p1); }
+</style>
+</head>
+<body>
+
+<a class="back-link pixel" href="../">← LIBRARY</a>
+
+<canvas id="gameCanvas"></canvas>
+
+<div id="hud" style="display:none;">
+  <div class="score-pill p1">
+    <div class="who pixel">YOU</div>
+    <div class="num pixel" id="scoreP1">0</div>
+  </div>
+  <div id="modeBox">
+    <div class="lbl pixel">MODE</div>
+    <div class="mode-name pixel" id="modeName">SOCCER</div>
+  </div>
+  <div class="score-pill p2">
+    <div class="who pixel">CPU</div>
+    <div class="num pixel" id="scoreP2">0</div>
+  </div>
+</div>
+
+<div id="boostWrap" style="display:none;">
+  <div class="lbl pixel">BOOST</div>
+  <div id="boostBarOuter"><div id="boostBarInner"></div></div>
+</div>
+
+<div id="controlsHint" style="display:none;">
+  <b>W/S</b> drive &nbsp; <b>A/D</b> steer<br>
+  <b>SPACE</b> jump &nbsp; <b>SHIFT</b> boost
+</div>
+
+<div id="banner">
+  <div class="goal-text pixel">GOAL!</div>
+  <div class="next-mode pixel">SWITCHING TO <span id="nextModeText">BASKETBALL</span></div>
+</div>
+
+<div class="overlay" id="startScreen">
+  <div class="eyebrow pixel">◆ INSERT COIN ◆</div>
+  <h1 class="pixel">ROCKET<br>ROTATION</h1>
+  <p class="desc">Knock the ball into the goal to score. Every goal instantly rotates the
+    sport — the arena, goal shape and rules change beneath your wheels. Adapt on the fly
+    and outscore the CPU across all three modes.</p>
+  <div class="mode-chips">
+    <div class="mode-chip soccer pixel">⚽ SOCCER</div>
+    <div class="mode-chip basketball pixel">🏀 BASKETBALL</div>
+    <div class="mode-chip football pixel">🏈 FOOTBALL</div>
+  </div>
+  <div class="key-row">
+    <div><kbd>W</kbd><kbd>S</kbd> drive</div>
+    <div><kbd>A</kbd><kbd>D</kbd> steer</div>
+    <div><kbd>SPACE</kbd> jump</div>
+    <div><kbd>SHIFT</kbd> boost</div>
+  </div>
+  <button class="btn pixel" id="startBtn">START MATCH</button>
+</div>
+
+<div class="overlay hidden" id="endScreen">
+  <div class="eyebrow pixel">◆ FULL TIME ◆</div>
+  <h1 class="pixel" id="endTitle">MATCH OVER</h1>
+  <div id="finalScore" class="pixel"></div>
+  <button class="btn pixel" id="restartBtn">PLAY AGAIN</button>
+</div>
+
+<script src="./vendor/three.min.js"></script>
+<script>
+(function(){
+  'use strict';
+
+  /* =========================================================
+     CONSTANTS
+     ========================================================= */
+  const ARENA_HALF_X = 15;
+  const ARENA_HALF_Z = 26;
+  const WALL_HEIGHT = 9;
+  const GOAL_LINE_Z = ARENA_HALF_Z;
+  const BALL_RADIUS = 0.85;
+  const CAR_COLLIDE_RADIUS = 1.9;
+  const GRAVITY = -22;
+  const MATCH_POINT = 5; // first to this many goals wins
+
+  const MODES = ['soccer', 'basketball', 'football'];
+  const MODE_LABELS = { soccer: 'SOCCER', basketball: 'BASKETBALL', football: 'FOOTBALL' };
+  const MODE_ICON_COLOR = { soccer: 0x6FE3A0, basketball: 0xFFA33E, football: 0x7FB8FF };
+
+  const GOAL_CFG = {
+    soccer:      { width: 9,   minY: 0,   maxY: 4.2 },
+    football:    { width: 4.6, minY: 4.6, maxY: 13.5 },
+    basketball:  { ringRadius: 1.35, ringHeight: 8.6, insetZ: 3.0 }
+  };
+
+  /* =========================================================
+     SETUP
+     ========================================================= */
+  const canvas = document.getElementById('gameCanvas');
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.25;
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0B0E14);
+  scene.fog = new THREE.Fog(0x0B0E14, 55, 110);
+
+  const camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.1, 300);
+
+  function resize(){
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  /* ---- Lights ---- */
+  scene.add(new THREE.HemisphereLight(0x5c6b96, 0x11141c, 1.1));
+  scene.add(new THREE.AmbientLight(0x7f8cb0, 0.55));
+  const sun = new THREE.DirectionalLight(0xffffff, 1.6);
+  sun.position.set(20, 34, 12);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.camera.left = -40;
+  sun.shadow.camera.right = 40;
+  sun.shadow.camera.top = 40;
+  sun.shadow.camera.bottom = -40;
+  sun.shadow.camera.far = 100;
+  scene.add(sun);
+  const rim = new THREE.DirectionalLight(0xFF3864, 0.35);
+  rim.position.set(-20, 10, -20);
+  scene.add(rim);
+
+  /* ---- Ground (checker grid texture for depth cues) ---- */
+  function makeGridTexture(){
+    const cnv = document.createElement('canvas');
+    cnv.width = 256; cnv.height = 256;
+    const ctx = cnv.getContext('2d');
+    ctx.fillStyle = '#1b2334';
+    ctx.fillRect(0, 0, 256, 256);
+    ctx.fillStyle = '#212b40';
+    const cell = 32;
+    for (let y = 0; y < 256; y += cell){
+      for (let x = 0; x < 256; x += cell){
+        if (((x / cell) + (y / cell)) % 2 === 0) ctx.fillRect(x, y, cell, cell);
+      }
+    }
+    const tex = new THREE.CanvasTexture(cnv);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(ARENA_HALF_X / 2, ARENA_HALF_Z / 2);
+    return tex;
+  }
+  const groundMat = new THREE.MeshStandardMaterial({ map: makeGridTexture(), roughness: 0.95, metalness: 0.05 });
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(ARENA_HALF_X * 2, ARENA_HALF_Z * 2), groundMat);
+  ground.rotation.x = -Math.PI / 2;
+  ground.receiveShadow = true;
+  scene.add(ground);
+
+  // center line + circle (visual flair)
+  const lineMat = new THREE.LineBasicMaterial({ color: 0x2c3446 });
+  const centerLinePts = [ new THREE.Vector3(-ARENA_HALF_X, 0.02, 0), new THREE.Vector3(ARENA_HALF_X, 0.02, 0) ];
+  scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(centerLinePts), lineMat));
+  const circleCurve = new THREE.EllipseCurve(0, 0, 5, 5, 0, Math.PI * 2, false, 0);
+  const circlePts = circleCurve.getPoints(64).map(p => new THREE.Vector3(p.x, 0.02, p.y));
+  scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(circlePts), lineMat));
+
+  /* ---- Side walls (always solid, static) ---- */
+  const wallMat = new THREE.MeshStandardMaterial({ color: 0x323d54, roughness: 0.7, transparent: true, opacity: 0.6 });
+  function makeSideWall(x){
+    const w = new THREE.Mesh(new THREE.BoxGeometry(0.4, WALL_HEIGHT, ARENA_HALF_Z * 2), wallMat);
+    w.position.set(x, WALL_HEIGHT / 2, 0);
+    w.castShadow = false;
+    scene.add(w);
+  }
+  makeSideWall(-ARENA_HALF_X - 0.2);
+  makeSideWall(ARENA_HALF_X + 0.2);
+
+  /* =========================================================
+     GOAL SYSTEM (rebuilt per mode)
+     ========================================================= */
+  const goalGroup = new THREE.Group();
+  scene.add(goalGroup);
+
+  function clearGoalGroup(){
+    while (goalGroup.children.length){
+      const c = goalGroup.children.pop();
+      if (c.geometry) c.geometry.dispose();
+      if (c.material) c.material.dispose();
+    }
+  }
+
+  function buildEndWallWithGap(sign, gapHalfW, gapMinY, gapMaxY, color){
+    // Build the solid end-wall as 4 segments around a rectangular gap (the goal mouth).
+    const z = sign * (ARENA_HALF_Z + 0.2);
+    const mat = new THREE.MeshStandardMaterial({ color: 0x323d54, roughness: 0.7, transparent: true, opacity: 0.55 });
+    const fullW = ARENA_HALF_X * 2 + 0.4;
+    // left segment
+    const leftW = (fullW / 2) - gapHalfW;
+    if (leftW > 0.05){
+      const seg = new THREE.Mesh(new THREE.BoxGeometry(leftW, WALL_HEIGHT, 0.4), mat);
+      seg.position.set(-fullW / 2 + leftW / 2, WALL_HEIGHT / 2, z);
+      goalGroup.add(seg);
+      const seg2 = seg.clone();
+      seg2.position.x = fullW / 2 - leftW / 2;
+      goalGroup.add(seg2);
+    }
+    // top segment above gap
+    const topH = WALL_HEIGHT - gapMaxY;
+    if (topH > 0.05){
+      const seg = new THREE.Mesh(new THREE.BoxGeometry(gapHalfW * 2, topH, 0.4), mat);
+      seg.position.set(0, gapMaxY + topH / 2, z);
+      goalGroup.add(seg);
+    }
+    // bottom segment (kick boards) below gap, only if gapMinY > 0
+    if (gapMinY > 0.05){
+      const seg = new THREE.Mesh(new THREE.BoxGeometry(gapHalfW * 2, gapMinY, 0.4), mat);
+      seg.position.set(0, gapMinY / 2, z);
+      goalGroup.add(seg);
+    }
+    // glowing goal frame outline
+    const frameMat = new THREE.MeshBasicMaterial({ color });
+    const frameThick = 0.18;
+    function frameBar(w, h, x, y){
+      const bar = new THREE.Mesh(new THREE.BoxGeometry(w, h, frameThick), frameMat);
+      bar.position.set(x, y, z - sign * 0.05);
+      goalGroup.add(bar);
+    }
+    frameBar(gapHalfW * 2 + frameThick, frameThick, 0, gapMaxY);
+    if (gapMinY > 0.05) frameBar(gapHalfW * 2 + frameThick, frameThick, 0, gapMinY);
+    frameBar(frameThick, gapMaxY - gapMinY, -gapHalfW, (gapMaxY + gapMinY) / 2);
+    frameBar(frameThick, gapMaxY - gapMinY, gapHalfW, (gapMaxY + gapMinY) / 2);
+
+    // net (backing) - simple translucent plane just behind the gap
+    const net = new THREE.Mesh(
+      new THREE.PlaneGeometry(gapHalfW * 2, gapMaxY - gapMinY),
+      new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.12, side: THREE.DoubleSide, wireframe: true })
+    );
+    net.position.set(0, (gapMaxY + gapMinY) / 2, z + sign * 1.4);
+    goalGroup.add(net);
+  }
+
+  function buildSolidEndWall(sign){
+    const z = sign * (ARENA_HALF_Z + 0.2);
+    const seg = new THREE.Mesh(new THREE.BoxGeometry(ARENA_HALF_X * 2 + 0.4, WALL_HEIGHT, 0.4), wallMat);
+    seg.position.set(0, WALL_HEIGHT / 2, z);
+    goalGroup.add(seg);
+  }
+
+  function buildHoop(sign, color){
+    const cfg = GOAL_CFG.basketball;
+    const hoopZ = sign * (ARENA_HALF_Z - cfg.insetZ);
+    const grp = new THREE.Group();
+    // backboard
+    const board = new THREE.Mesh(
+      new THREE.BoxGeometry(3.4, 2.4, 0.15),
+      new THREE.MeshStandardMaterial({ color: 0xdfe6ee, transparent: true, opacity: 0.35 })
+    );
+    board.position.set(0, cfg.ringHeight + 1.6, sign * (ARENA_HALF_Z - 0.3));
+    grp.add(board);
+    // pole
+    const pole = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.18, 0.18, cfg.ringHeight + 1.6, 10),
+      new THREE.MeshStandardMaterial({ color: 0x2a3142 })
+    );
+    pole.position.set(0, (cfg.ringHeight + 1.6) / 2, sign * (ARENA_HALF_Z - 0.05));
+    grp.add(pole);
+    // ring
+    const ring = new THREE.Mesh(
+      new THREE.TorusGeometry(cfg.ringRadius, 0.09, 10, 24),
+      new THREE.MeshBasicMaterial({ color })
+    );
+    ring.rotation.x = Math.PI / 2;
+    ring.position.set(0, cfg.ringHeight, hoopZ);
+    grp.add(ring);
+    // net (visual only, cone wireframe)
+    const net = new THREE.Mesh(
+      new THREE.CylinderGeometry(cfg.ringRadius, cfg.ringRadius * 0.35, 1.6, 12, 4, true),
+      new THREE.MeshBasicMaterial({ color, wireframe: true, transparent: true, opacity: 0.5 })
+    );
+    net.position.set(0, cfg.ringHeight - 0.8, hoopZ);
+    grp.add(net);
+    goalGroup.add(grp);
+    // also seal the end wall solidly (backboard mounted on wall)
+    buildSolidEndWall(sign);
+  }
+
+  function rebuildGoals(mode){
+    clearGoalGroup();
+    const color = MODE_ICON_COLOR[mode];
+    if (mode === 'soccer'){
+      const cfg = GOAL_CFG.soccer;
+      buildEndWallWithGap(1, cfg.width / 2, cfg.minY, cfg.maxY, color);
+      buildEndWallWithGap(-1, cfg.width / 2, cfg.minY, cfg.maxY, color);
+    } else if (mode === 'football'){
+      const cfg = GOAL_CFG.football;
+      buildEndWallWithGap(1, cfg.width / 2, cfg.minY, cfg.maxY, color);
+      buildEndWallWithGap(-1, cfg.width / 2, cfg.minY, cfg.maxY, color);
+    } else if (mode === 'basketball'){
+      buildHoop(1, color);
+      buildHoop(-1, color);
+    }
+  }
+
+  /* =========================================================
+     BALL
+     ========================================================= */
+  const ballMesh = new THREE.Mesh(
+    new THREE.SphereGeometry(BALL_RADIUS, 20, 16),
+    new THREE.MeshStandardMaterial({ color: 0xE8ECF1, roughness: 0.4, metalness: 0.15 })
+  );
+  ballMesh.castShadow = true;
+  scene.add(ballMesh);
+
+  const ball = {
+    pos: new THREE.Vector3(0, BALL_RADIUS + 0.3, 0),
+    vel: new THREE.Vector3(0, 0, 0),
+    prevZ: 0,
+    prevY: BALL_RADIUS + 0.3
+  };
+
+  function resetBall(){
+    ball.pos.set(0, 6, 0);
+    ball.vel.set(0, 0, 0);
+    ball.prevZ = 0;
+    ball.prevY = 6;
+  }
+
+  /* =========================================================
+     CARS
+     ========================================================= */
+  function buildCarMesh(color){
+    const grp = new THREE.Group();
+    const bodyMat = new THREE.MeshStandardMaterial({ color, roughness: 0.45, metalness: 0.3 });
+    const body = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.8, 3.2), bodyMat);
+    body.position.y = 0.65;
+    body.castShadow = true;
+    grp.add(body);
+    const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.55, 1.5), new THREE.MeshStandardMaterial({ color: 0x0B0E14, roughness: 0.3, metalness: 0.4 }));
+    cabin.position.set(0, 1.15, -0.1);
+    cabin.castShadow = true;
+    grp.add(cabin);
+    const wheelGeo = new THREE.CylinderGeometry(0.42, 0.42, 0.4, 14);
+    const wheelMat = new THREE.MeshStandardMaterial({ color: 0x111318, roughness: 0.9 });
+    const wheelOffsets = [[-1.05, 0.42, 1.05], [1.05, 0.42, 1.05], [-1.05, 0.42, -1.05], [1.05, 0.42, -1.05]];
+    wheelOffsets.forEach(([x, y, z]) => {
+      const w = new THREE.Mesh(wheelGeo, wheelMat);
+      w.rotation.z = Math.PI / 2;
+      w.position.set(x, y, z);
+      w.castShadow = true;
+      grp.add(w);
+    });
+    // headlight glow strip
+    const strip = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.12, 0.08), new THREE.MeshBasicMaterial({ color }));
+    strip.position.set(0, 0.65, 1.62);
+    grp.add(strip);
+    return grp;
+  }
+
+  function makeCar(color, spawn, facing){
+    return {
+      mesh: buildCarMesh(color),
+      pos: spawn.clone(),
+      vel: new THREE.Vector3(0, 0, 0),
+      yaw: facing,
+      vy: 0,
+      grounded: true,
+      boost: 100,
+      boosting: false,
+      spawn: spawn.clone(),
+      facingSpawn: facing
+    };
+  }
+
+  const P1_SPAWN = new THREE.Vector3(0, 0, 16);
+  const P2_SPAWN = new THREE.Vector3(0, 0, -16);
+
+  const player = makeCar(0xFF3864, P1_SPAWN, Math.PI);      // faces -z (attacks -z goal)
+  const cpu = makeCar(0x2DE1C2, P2_SPAWN, 0);                // faces +z (attacks +z goal)
+  scene.add(player.mesh);
+  scene.add(cpu.mesh);
+
+  function resetCars(){
+    [player, cpu].forEach(c => {
+      c.pos.copy(c.spawn);
+      c.vel.set(0, 0, 0);
+      c.yaw = c.facingSpawn;
+      c.vy = 0;
+      c.grounded = true;
+    });
+  }
+
+  /* =========================================================
+     INPUT
+     ========================================================= */
+  const keys = {};
+  window.addEventListener('keydown', e => {
+    keys[e.code] = true;
+    if (['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)) e.preventDefault();
+  });
+  window.addEventListener('keyup', e => { keys[e.code] = false; });
+
+  /* =========================================================
+     CAR PHYSICS
+     ========================================================= */
+  const CAR_ACCEL = 26;
+  const CAR_MAX_SPEED = 17;
+  const CAR_BOOST_ACCEL = 42;
+  const CAR_BOOST_MAX_SPEED = 27;
+  const CAR_TURN_RATE = 2.6;
+  const CAR_FRICTION = 3.2;
+  const JUMP_SPEED = 9.5;
+
+  function updateCarPhysics(car, input, dt){
+    car.boosting = input.boost && car.boost > 0.5;
+    const accel = car.boosting ? CAR_BOOST_ACCEL : CAR_ACCEL;
+    const maxSpeed = car.boosting ? CAR_BOOST_MAX_SPEED : CAR_MAX_SPEED;
+
+    // turning: scale down at high speed for arcade stability
+    const speed = Math.hypot(car.vel.x, car.vel.z);
+    const turnFactor = THREE.MathUtils.clamp(1 - speed / (maxSpeed * 1.6), 0.35, 1);
+    car.yaw += input.turn * CAR_TURN_RATE * turnFactor * dt;
+
+    const forward = new THREE.Vector3(Math.sin(car.yaw), 0, Math.cos(car.yaw));
+    const throttle = input.throttle;
+    car.vel.x += forward.x * throttle * accel * dt;
+    car.vel.z += forward.z * throttle * accel * dt;
+
+    // friction / drag
+    const horizSpeed = Math.hypot(car.vel.x, car.vel.z);
+    if (horizSpeed > 0.001){
+      const drop = Math.min(horizSpeed, CAR_FRICTION * dt * (throttle === 0 ? 2.2 : 1));
+      const scale = (horizSpeed - drop) / horizSpeed;
+      car.vel.x *= Math.max(scale, 0);
+      car.vel.z *= Math.max(scale, 0);
+    }
+    const newSpeed = Math.hypot(car.vel.x, car.vel.z);
+    if (newSpeed > maxSpeed){
+      const s = maxSpeed / newSpeed;
+      car.vel.x *= s; car.vel.z *= s;
+    }
+
+    // jump
+    if (input.jump && car.grounded){
+      car.vy = JUMP_SPEED;
+      car.grounded = false;
+    }
+    car.vy += GRAVITY * dt;
+    car.pos.y += car.vy * dt;
+    if (car.pos.y <= 0){
+      car.pos.y = 0;
+      car.vy = 0;
+      car.grounded = true;
+    }
+
+    car.pos.x += car.vel.x * dt;
+    car.pos.z += car.vel.z * dt;
+
+    // arena bounds clamp
+    const bx = ARENA_HALF_X - 1.1, bz = ARENA_HALF_Z - 1.1;
+    if (car.pos.x > bx){ car.pos.x = bx; car.vel.x = 0; }
+    if (car.pos.x < -bx){ car.pos.x = -bx; car.vel.x = 0; }
+    if (car.pos.z > bz){ car.pos.z = bz; car.vel.z = 0; }
+    if (car.pos.z < -bz){ car.pos.z = -bz; car.vel.z = 0; }
+
+    // boost meter
+    if (car.boosting){
+      car.boost = Math.max(0, car.boost - 32 * dt);
+    } else {
+      car.boost = Math.min(100, car.boost + 12 * dt);
+    }
+
+    car.mesh.position.set(car.pos.x, car.pos.y, car.pos.z);
+    car.mesh.rotation.y = car.yaw;
+    // slight tilt on landing/jump for feel
+    car.mesh.rotation.x = THREE.MathUtils.lerp(car.mesh.rotation.x, car.grounded ? 0 : -0.08, 0.2);
+  }
+
+  /* =========================================================
+     AI
+     ========================================================= */
+  function computeAIInput(){
+    const attackSign = 1; // cpu attacks +z goal
+    const toGoal = new THREE.Vector3(0, 0, ARENA_HALF_Z * attackSign).sub(ball.pos);
+    toGoal.y = 0;
+    if (toGoal.lengthSq() < 0.0001) toGoal.set(0, 0, 1);
+    toGoal.normalize();
+
+    // desired position: slightly behind the ball relative to attack direction
+    const targetPos = ball.pos.clone().sub(toGoal.clone().multiplyScalar(3.0));
+    const toTarget = targetPos.clone().sub(cpu.pos);
+    toTarget.y = 0;
+    const distToTarget = toTarget.length();
+
+    // once close to the "behind ball" spot, drive straight at the ball
+    const aimPoint = distToTarget < 2.5 ? ball.pos : targetPos;
+    const desired = aimPoint.clone().sub(cpu.pos);
+    desired.y = 0;
+    const desiredYaw = Math.atan2(desired.x, desired.z);
+
+    let yawDiff = desiredYaw - cpu.yaw;
+    while (yawDiff > Math.PI) yawDiff -= Math.PI * 2;
+    while (yawDiff < -Math.PI) yawDiff += Math.PI * 2;
+
+    const turn = THREE.MathUtils.clamp(yawDiff * 1.6, -1, 1);
+    const facingAway = Math.abs(yawDiff) > Math.PI * 0.55;
+    const throttle = facingAway ? -0.6 : 1;
+
+    const distToBall = cpu.pos.distanceTo(ball.pos);
+    const boost = distToBall > 8 && cpu.boost > 25 && !facingAway;
+
+    const needsHeight = currentMode !== 'soccer';
+    const jump = needsHeight && distToBall < 3.4 && ball.pos.y < (currentMode === 'basketball' ? 6 : 4.5) && cpu.grounded;
+
+    return { throttle, turn, boost, jump };
+  }
+
+  /* =========================================================
+     BALL PHYSICS + COLLISIONS
+     ========================================================= */
+  const BALL_RESTITUTION = 0.62;
+  const BALL_DRAG = 0.15;
+
+  function updateBallPhysics(dt){
+    ball.prevZ = ball.pos.z;
+    ball.prevY = ball.pos.y;
+
+    ball.vel.y += GRAVITY * dt;
+    ball.vel.x *= (1 - BALL_DRAG * dt);
+    ball.vel.z *= (1 - BALL_DRAG * dt);
+
+    ball.pos.addScaledVector(ball.vel, dt);
+
+    // floor
+    if (ball.pos.y < BALL_RADIUS){
+      ball.pos.y = BALL_RADIUS;
+      if (ball.vel.y < 0) ball.vel.y = -ball.vel.y * BALL_RESTITUTION;
+    }
+    // ceiling-ish cap (no real ceiling, just sanity clamp)
+    if (ball.pos.y > 40){ ball.pos.y = 40; ball.vel.y = Math.min(ball.vel.y, 0); }
+
+    // side walls
+    const bx = ARENA_HALF_X - BALL_RADIUS;
+    if (ball.pos.x > bx){ ball.pos.x = bx; ball.vel.x = -Math.abs(ball.vel.x) * BALL_RESTITUTION; }
+    if (ball.pos.x < -bx){ ball.pos.x = -bx; ball.vel.x = Math.abs(ball.vel.x) * BALL_RESTITUTION; }
+
+    handleGoalsAndEndWalls();
+    resolveCarBallCollision(player);
+    resolveCarBallCollision(cpu);
+
+    ballMesh.position.copy(ball.pos);
+    ballMesh.rotation.x += ball.vel.z * dt * 0.15;
+    ballMesh.rotation.z -= ball.vel.x * dt * 0.15;
+  }
+
+  function resolveCarBallCollision(car){
+    const carCenter = new THREE.Vector3(car.pos.x, car.pos.y + 0.65, car.pos.z);
+    const diff = ball.pos.clone().sub(carCenter);
+    const dist = diff.length();
+    const minDist = BALL_RADIUS + CAR_COLLIDE_RADIUS;
+    if (dist < minDist && dist > 0.0001){
+      const n = diff.clone().normalize();
+      const overlap = minDist - dist;
+      ball.pos.addScaledVector(n, overlap);
+
+      const carSpeed = Math.hypot(car.vel.x, car.vel.z);
+      const hitStrength = 6 + carSpeed * 0.9 + (car.boosting ? 6 : 0);
+
+      ball.vel.x += n.x * hitStrength + car.vel.x * 0.5;
+      ball.vel.z += n.z * hitStrength + car.vel.z * 0.5;
+      ball.vel.y += Math.max(0, n.y) * hitStrength * 0.9 + Math.max(0, car.vy) * 0.7 + (n.y > 0.25 ? 3.5 : 0);
+    }
+  }
+
+  function handleGoalsAndEndWalls(){
+    if (currentMode === 'basketball'){
+      handleBasketballHoops();
+      // both end walls fully solid
+      [1, -1].forEach(sign => {
+        const lineZ = sign * (ARENA_HALF_Z - BALL_RADIUS);
+        if (sign > 0 && ball.pos.z > lineZ){ ball.pos.z = lineZ; ball.vel.z = -Math.abs(ball.vel.z) * BALL_RESTITUTION; }
+        if (sign < 0 && ball.pos.z < lineZ){ ball.pos.z = lineZ; ball.vel.z = Math.abs(ball.vel.z) * BALL_RESTITUTION; }
+      });
+      return;
+    }
+
+    const cfg = GOAL_CFG[currentMode];
+    [1, -1].forEach(sign => {
+      const lineZ = sign * GOAL_LINE_Z;
+      const crossed = sign > 0
+        ? (ball.prevZ < lineZ && ball.pos.z >= lineZ)
+        : (ball.prevZ > lineZ && ball.pos.z <= lineZ);
+      if (!crossed) return;
+
+      const inWindow = Math.abs(ball.pos.x) < cfg.width / 2 && ball.pos.y > cfg.minY && ball.pos.y < cfg.maxY;
+      if (inWindow){
+        scoreGoal(sign > 0 ? 'cpu' : 'player');
+      } else {
+        // bounce off the wall around the goal mouth
+        ball.pos.z = lineZ - sign * 0.05;
+        ball.vel.z = -ball.vel.z * BALL_RESTITUTION;
+      }
+    });
+  }
+
+  function handleBasketballHoops(){
+    if (scoreLocked) return;
+    const cfg = GOAL_CFG.basketball;
+    [1, -1].forEach(sign => {
+      const hoopZ = sign * (ARENA_HALF_Z - cfg.insetZ);
+      const crossedDown = ball.prevY >= cfg.ringHeight && ball.pos.y < cfg.ringHeight && ball.vel.y < 0;
+      if (!crossedDown) return;
+      const dx = ball.pos.x;
+      const dz = ball.pos.z - hoopZ;
+      const horizDist = Math.hypot(dx, dz);
+      if (horizDist < cfg.ringRadius){
+        scoreGoal(sign > 0 ? 'cpu' : 'player');
+      }
+    });
+  }
+
+  /* =========================================================
+     MODE / SCORE STATE MACHINE
+     ========================================================= */
+  let currentModeIndex = 0;
+  let currentMode = MODES[currentModeIndex];
+  let scoreP1 = 0, scoreP2 = 0;
+  let scoreLocked = false;
+  let running = false;
+  let matchOver = false;
+
+  const scoreP1El = document.getElementById('scoreP1');
+  const scoreP2El = document.getElementById('scoreP2');
+  const modeNameEl = document.getElementById('modeName');
+  const bannerEl = document.getElementById('banner');
+  const nextModeTextEl = document.getElementById('nextModeText');
+  const boostBarInner = document.getElementById('boostBarInner');
+
+  function applyModeVisual(mode){
+    modeNameEl.textContent = MODE_LABELS[mode];
+    modeNameEl.className = 'mode-name pixel ' + mode;
+    rebuildGoals(mode);
+  }
+
+  function scoreGoal(who){
+    if (scoreLocked || matchOver) return;
+    scoreLocked = true;
+    if (who === 'player') scoreP1++; else scoreP2++;
+    scoreP1El.textContent = scoreP1;
+    scoreP2El.textContent = scoreP2;
+
+    const nextMode = MODES[(currentModeIndex + 1) % MODES.length];
+    nextModeTextEl.textContent = MODE_LABELS[nextMode];
+    bannerEl.classList.add('show');
+
+    setTimeout(() => {
+      currentModeIndex = (currentModeIndex + 1) % MODES.length;
+      currentMode = MODES[currentModeIndex];
+      applyModeVisual(currentMode);
+      resetBall();
+      resetCars();
+      bannerEl.classList.remove('show');
+      scoreLocked = false;
+
+      if (scoreP1 >= MATCH_POINT || scoreP2 >= MATCH_POINT){
+        endMatch();
+      }
+    }, 1600);
+  }
+
+  function endMatch(){
+    matchOver = true;
+    running = false;
+    const endTitle = document.getElementById('endTitle');
+    const finalScore = document.getElementById('finalScore');
+    const won = scoreP1 > scoreP2;
+    endTitle.textContent = won ? 'YOU WIN!' : 'CPU WINS';
+    finalScore.innerHTML = `<span class="${won ? 'win' : 'lose'}">${scoreP1}</span> — <span class="${won ? 'lose' : 'win'}">${scoreP2}</span>`;
+    document.getElementById('endScreen').classList.remove('hidden');
+  }
+
+  /* =========================================================
+     CAMERA
+     ========================================================= */
+  const camOffset = new THREE.Vector3(0, 6.2, 11);
+  const camLookOffset = new THREE.Vector3(0, 1.2, -4);
+  let camPos = new THREE.Vector3(0, 8, 24);
+  let camLook = new THREE.Vector3(0, 0, 0);
+
+  function updateCamera(dt){
+    const behind = new THREE.Vector3(Math.sin(player.yaw + Math.PI), 0, Math.cos(player.yaw + Math.PI));
+    const desiredPos = new THREE.Vector3(
+      player.pos.x + behind.x * camOffset.z,
+      player.pos.y + camOffset.y,
+      player.pos.z + behind.z * camOffset.z
+    );
+    const forward = new THREE.Vector3(Math.sin(player.yaw), 0, Math.cos(player.yaw));
+    const desiredLook = new THREE.Vector3(
+      player.pos.x + forward.x * camLookOffset.z,
+      player.pos.y + camLookOffset.y,
+      player.pos.z + forward.z * camLookOffset.z
+    );
+    const t = 1 - Math.pow(0.001, dt);
+    camPos.lerp(desiredPos, t);
+    camLook.lerp(desiredLook, t * 1.3);
+    camera.position.copy(camPos);
+    camera.lookAt(camLook);
+  }
+
+  /* =========================================================
+     MAIN LOOP
+     ========================================================= */
+  let lastTime = performance.now();
+
+  function frame(now){
+    requestAnimationFrame(frame);
+    let dt = (now - lastTime) / 1000;
+    lastTime = now;
+    dt = Math.min(dt, 1 / 30);
+
+    if (running && !scoreLocked){
+      const playerInput = {
+        throttle: (keys['KeyW'] || keys['ArrowUp'] ? 1 : 0) - (keys['KeyS'] || keys['ArrowDown'] ? 1 : 0),
+        turn: (keys['KeyA'] || keys['ArrowLeft'] ? 1 : 0) - (keys['KeyD'] || keys['ArrowRight'] ? 1 : 0),
+        boost: !!(keys['ShiftLeft'] || keys['ShiftRight']),
+        jump: !!keys['Space']
+      };
+      const aiInput = computeAIInput();
+
+      updateCarPhysics(player, playerInput, dt);
+      updateCarPhysics(cpu, aiInput, dt);
+      updateBallPhysics(dt);
+      updateCamera(dt);
+
+      boostBarInner.style.width = player.boost + '%';
+    } else if (running){
+      updateCamera(dt);
+    }
+
+    renderer.render(scene, camera);
+  }
+
+  /* =========================================================
+     START / RESTART
+     ========================================================= */
+  function startMatch(){
+    scoreP1 = 0; scoreP2 = 0; currentModeIndex = 0; currentMode = MODES[0];
+    scoreP1El.textContent = '0'; scoreP2El.textContent = '0';
+    applyModeVisual(currentMode);
+    resetBall();
+    resetCars();
+    scoreLocked = false;
+    matchOver = false;
+    document.getElementById('startScreen').classList.add('hidden');
+    document.getElementById('endScreen').classList.add('hidden');
+    document.getElementById('hud').style.display = 'flex';
+    document.getElementById('boostWrap').style.display = 'block';
+    document.getElementById('controlsHint').style.display = 'block';
+    running = true;
+  }
+
+  document.getElementById('startBtn').addEventListener('click', startMatch);
+  document.getElementById('restartBtn').addEventListener('click', startMatch);
+
+  applyModeVisual(currentMode);
+  resetBall();
+  updateCamera(1);
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
