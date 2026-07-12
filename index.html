@@ -15,6 +15,7 @@
     --p2: #2DE1C2;
     --p3: #FFA33E;
     --p4: #9B5CF6;
+    --p5: #4FC3F7;
     --text: #E8ECF1;
     --muted: #5B6472;
   }
@@ -136,6 +137,7 @@
   .card.p2::before{ background: var(--p2); box-shadow: 0 0 14px var(--p2); }
   .card.p3::before{ background: var(--p3); box-shadow: 0 0 14px var(--p3); }
   .card.p4::before{ background: var(--p4); box-shadow: 0 0 14px var(--p4); }
+  .card.p5::before{ background: var(--p5); box-shadow: 0 0 14px var(--p5); }
 
   .card:hover{
     transform: translateY(-6px);
@@ -144,6 +146,7 @@
   .card.p2:hover{ border-color: var(--p2); }
   .card.p3:hover{ border-color: var(--p3); }
   .card.p4:hover{ border-color: var(--p4); }
+  .card.p5:hover{ border-color: var(--p5); }
 
   .tag{
     font-family: 'Press Start 2P', monospace;
@@ -157,6 +160,7 @@
   .card.p2 .tag{ color: var(--p2); }
   .card.p3 .tag{ color: var(--p3); }
   .card.p4 .tag{ color: var(--p4); }
+  .card.p5 .tag{ color: var(--p5); }
 
   .game-name{
     font-family: 'Press Start 2P', monospace;
@@ -186,6 +190,7 @@
   .card.p2 .cta{ color: var(--p2); }
   .card.p3 .cta{ color: var(--p3); }
   .card.p4 .cta{ color: var(--p4); }
+  .card.p5 .cta{ color: var(--p5); }
 
   .cta .arrow{ transition: transform 0.18s ease; }
   .card:hover .arrow{ transform: translateX(6px); }
@@ -285,6 +290,19 @@
         <div class="tag">PLAYER 4</div>
         <h2 class="game-name">Color Sort</h2>
         <p class="desc">A water-sort bottle puzzle. Pour stacked colors between tubes until each bottle holds a single color — undo, reshuffle, and climb through endless procedurally generated levels.</p>
+      </div>
+      <div class="cta">
+        <span><span class="status-dot live"></span>READY</span>
+        <span style="flex-grow:1"></span>
+        <span class="arrow">→</span>
+      </div>
+    </a>
+
+    <a class="card p5" href="./FrostlineRush/">
+      <div>
+        <div class="tag">PLAYER 5</div>
+        <h2 class="game-name">Frostline Rush</h2>
+        <p class="desc">A swipe-to-move resource tycoon. Drag your hauler across the ice, chop logs, carve meat and mine gold, then haul it all back to camp before it melts into cash.</p>
       </div>
       <div class="cta">
         <span><span class="status-dot live"></span>READY</span>

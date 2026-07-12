@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Frostline Rush — Tyler's Games</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Space+Grotesk:wght@400;500;700&display=swap');
+
+  :root{
+    --bg: #0B0E14;
+    --panel: #151A24;
+    --panel-line: #232A38;
+    --accent: #2DE1C2;
+    --accent2: #FF3864;
+    --gold: #FFA33E;
+    --text: #E8ECF1;
+    --muted: #5B6472;
+  }
+
+  *{ box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; }
+
+  html, body{
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Space Grotesk', sans-serif;
+    height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+
+  a{ color: var(--accent); }
+
+  .wrap{
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 14px 14px 10px;
+  }
+
+  .topbar{
+    width: 100%;
+    max-width: 480px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+    flex-shrink: 0;
+  }
+
+  .back{
+    font-family: 'Press Start 2P', monospace;
+    font-size: 9px;
+    letter-spacing: 1px;
+    color: var(--muted);
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .back:hover{ color: var(--accent); }
+
+  .title{
+    font-family: 'Press Start 2P', monospace;
+    font-size: 11px;
+    letter-spacing: 1px;
+    color: var(--text);
+    text-shadow: 0 0 10px rgba(45,225,194,0.35);
+  }
+
+  .stage{
+    position: relative;
+    width: min(480px, 100vw - 28px);
+    aspect-ratio: 9 / 16;
+    max-height: calc(100vh - 90px);
+    border-radius: 14px;
+    overflow: hidden;
+    border: 1px solid var(--panel-line);
+    box-shadow: 0 0 0 1px #000, 0 20px 50px rgba(0,0,0,0.5);
+    background: #9fd4ee;
+  }
+
+  canvas{
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    touch-action: none;
+    display: block;
+  }
+
+  .hud{
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    right: 10px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    justify-content: flex-end;
+    z-index: 5;
+    pointer-events: none;
+  }
+
+  .pill{
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: rgba(11,14,20,0.55);
+    border: 1px solid rgba(255,255,255,0.12);
+    backdrop-filter: blur(2px);
+    border-radius: 999px;
+    padding: 5px 10px 5px 6px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #fff;
+  }
+  .pill .icon{ font-size: 14px; line-height: 1; }
+  .pill .val{ min-width: 14px; text-align: left; font-variant-numeric: tabular-nums; }
+
+  .logo{
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    z-index: 5;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 10px;
+    color: #fff;
+    text-shadow: -1px 0 #0b3550, 1px 0 #0b3550, 0 -1px #0b3550, 0 1px #0b3550;
+    pointer-events: none;
+    line-height: 1.5;
+  }
+  .logo span{ display:block; color: var(--gold); }
+
+  .hint{
+    position: absolute;
+    left: 50%;
+    top: 46%;
+    transform: translate(-50%, -50%);
+    font-family: 'Press Start 2P', monospace;
+    font-size: 13px;
+    color: #fff;
+    text-shadow: -1px 0 #000, 1px 0 #000, 0 -1px #000, 0 1px #000, 0 2px 4px rgba(0,0,0,0.4);
+    z-index: 6;
+    pointer-events: none;
+    transition: opacity 0.5s ease;
+    text-align: center;
+    white-space: nowrap;
+  }
+
+  .toast{
+    position: absolute;
+    bottom: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 11px;
+    color: var(--muted);
+    z-index: 5;
+    letter-spacing: 0.5px;
+    pointer-events: none;
+  }
+
+  footer{
+    margin-top: 8px;
+    font-size: 11px;
+    color: var(--muted);
+    text-align: center;
+    flex-shrink: 0;
+  }
+  footer a{ color: var(--muted); }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="topbar">
+    <a class="back" href="../index.html">&larr; ARCADE</a>
+    <div class="title">FROSTLINE RUSH</div>
+  </div>
+
+  <div class="stage" id="stage">
+    <canvas id="game"></canvas>
+
+    <div class="logo">FROSTLINE<span>RUSH</span></div>
+
+    <div class="hud" id="hud">
+      <div class="pill"><span class="icon">💰</span><span class="val" id="valCash">0</span></div>
+      <div class="pill"><span class="icon">🪵</span><span class="val" id="valWood">0</span></div>
+      <div class="pill"><span class="icon">🥩</span><span class="val" id="valMeat">0</span></div>
+      <div class="pill"><span class="icon">🪙</span><span class="val" id="valGold">0</span></div>
+    </div>
+
+    <div class="hint" id="hint">Swipe to move</div>
+    <div class="toast" id="toast"></div>
+  </div>
+
+  <footer>drag anywhere on the ice to move &middot; haul logs, meat &amp; gold back to camp</footer>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  const stage = document.getElementById('stage');
+  const hint = document.getElementById('hint');
+  const toast = document.getElementById('toast');
+
+  // Internal virtual resolution (portrait), scaled to fit the stage element.
+  const VW = 480, VH = 853;
+  let dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+
+  function resize(){
+    const rect = stage.getBoundingClientRect();
+    canvas.width = Math.round(rect.width * dpr);
+    canvas.height = Math.round(rect.height * dpr);
+    canvas.style.width = rect.width + 'px';
+    canvas.style.height = rect.height + 'px';
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  function scaleFactor(){
+    return canvas.width / VW;
+  }
+
+  // ---------- Game state ----------
+  const state = {
+    cash: 0, wood: 0, meat: 0, gold: 0,
+    started: false
+  };
+
+  const CAP = 6; // carry capacity
+  const player = {
+    x: VW/2, y: 620, r: 16,
+    vx: 0, vy: 0, speed: 190,
+    facing: 1,
+    carry: [] // array of 'wood'|'meat'|'gold'
+  };
+
+  const RES_INFO = {
+    wood:  { icon:'🪵', color:'#8a5a2b', value: 2 },
+    meat:  { icon:'🥩', color:'#c94f4f', value: 4 },
+    gold:  { icon:'🪙', color:'#e0a92e', value: 9 }
+  };
+
+  const nodes = [
+    { type:'wood', x: 100, y: 260, r: 46, stock: 6, max: 8, regenT: 0 },
+    { type:'meat', x: 380, y: 250, r: 44, stock: 5, max: 8, regenT: 0 },
+    { type:'gold', x: 380, y: 440, r: 44, stock: 4, max: 6, regenT: 0 }
+  ];
+
+  const depot = { x: 150, y: 470, r: 56 };
+
+  // decorative idle queue of workers near depot
+  const queue = [];
+  for(let i=0;i<7;i++){
+    queue.push({ x: 40 + (i%4)*26, y: 700 + Math.floor(i/4)*34, phase: Math.random()*Math.PI*2 });
+  }
+
+  const particles = []; // floating +text
+  const snow = [];
+  for(let i=0;i<50;i++){
+    snow.push({ x: Math.random()*VW, y: Math.random()*VH, r: 1+Math.random()*2.2, s: 20+Math.random()*30, drift: (Math.random()-0.5)*20 });
+  }
+
+  const BOUND = { minX: 26, maxX: VW-26, minY: 150, maxY: VH-40 };
+
+  // ---------- Input: floating joystick (swipe anywhere) ----------
+  const stick = { active:false, ox:0, oy:0, dx:0, dy:0, id:null };
+  const STICK_MAX = 46;
+  const keys = {};
+
+  function localPoint(clientX, clientY){
+    const rect = canvas.getBoundingClientRect();
+    const sx = VW / rect.width;
+    const sy = VH / rect.height;
+    return { x: (clientX - rect.left) * sx, y: (clientY - rect.top) * sy };
+  }
+
+  function onDown(clientX, clientY, id){
+    const p = localPoint(clientX, clientY);
+    stick.active = true;
+    stick.ox = p.x; stick.oy = p.y;
+    stick.dx = 0; stick.dy = 0;
+    stick.id = id;
+    if(!state.started){
+      state.started = true;
+      hint.style.opacity = '0';
+    }
+  }
+  function onMove(clientX, clientY){
+    if(!stick.active) return;
+    const p = localPoint(clientX, clientY);
+    let dx = p.x - stick.ox, dy = p.y - stick.oy;
+    const d = Math.hypot(dx,dy);
+    if(d > STICK_MAX){ dx = dx/d*STICK_MAX; dy = dy/d*STICK_MAX; }
+    stick.dx = dx; stick.dy = dy;
+  }
+  function onUp(){
+    stick.active = false;
+    stick.dx = 0; stick.dy = 0;
+  }
+
+  canvas.addEventListener('pointerdown', e=>{ canvas.setPointerCapture(e.pointerId); onDown(e.clientX, e.clientY, e.pointerId); });
+  canvas.addEventListener('pointermove', e=>{ if(e.pointerId === stick.id) onMove(e.clientX, e.clientY); });
+  window.addEventListener('pointerup', e=>{ if(e.pointerId === stick.id) onUp(); });
+  window.addEventListener('pointercancel', e=>{ if(e.pointerId === stick.id) onUp(); });
+
+  window.addEventListener('keydown', e=>{ keys[e.key.toLowerCase()] = true; if(!state.started){ state.started=true; hint.style.opacity='0'; } });
+  window.addEventListener('keyup', e=>{ keys[e.key.toLowerCase()] = false; });
+
+  function inputVector(){
+    let dx = 0, dy = 0;
+    if(stick.active){
+      dx = stick.dx / STICK_MAX;
+      dy = stick.dy / STICK_MAX;
+    } else {
+      if(keys['arrowleft']||keys['a']) dx -= 1;
+      if(keys['arrowright']||keys['d']) dx += 1;
+      if(keys['arrowup']||keys['w']) dy -= 1;
+      if(keys['arrowdown']||keys['s']) dy += 1;
+      const d = Math.hypot(dx,dy);
+      if(d>1){ dx/=d; dy/=d; }
+    }
+    return { dx, dy };
+  }
+
+  // ---------- Helpers ----------
+  function addParticle(x,y,text,color){
+    particles.push({ x, y, text, color, t:0, life: 0.9 });
+  }
+  function showToast(msg){
+    toast.textContent = msg;
+    toast.style.opacity = '1';
+    clearTimeout(showToast._t);
+    showToast._t = setTimeout(()=>{ toast.style.opacity='0'; }, 1400);
+  }
+
+  function fmt(n){
+    return n >= 1000 ? (n/1000).toFixed(1)+'k' : String(n);
+  }
+  function syncHud(){
+    document.getElementById('valCash').textContent = fmt(state.cash);
+    document.getElementById('valWood').textContent = fmt(state.wood);
+    document.getElementById('valMeat').textContent = fmt(state.meat);
+    document.getElementById('valGold').textContent = fmt(state.gold);
+  }
+  syncHud();
+
+  // ---------- Update ----------
+  let last = performance.now();
+  let harvestCooldown = 0, depositCooldown = 0;
+
+  function update(dt){
+    // regen nodes
+    nodes.forEach(n=>{
+      if(n.stock < n.max){
+        n.regenT += dt;
+        if(n.regenT > 1.6){ n.regenT = 0; n.stock++; }
+      }
+    });
+
+    // movement
+    const { dx, dy } = inputVector();
+    player.vx = dx * player.speed;
+    player.vy = dy * player.speed;
+    if(Math.abs(dx) > 0.05) player.facing = dx > 0 ? 1 : -1;
+
+    player.x += player.vx * dt;
+    player.y += player.vy * dt;
+    player.x = Math.max(BOUND.minX, Math.min(BOUND.maxX, player.x));
+    player.y = Math.max(BOUND.minY, Math.min(BOUND.maxY, player.y));
+
+    // harvesting
+    harvestCooldown -= dt;
+    if(harvestCooldown <= 0){
+      for(const n of nodes){
+        const d = Math.hypot(player.x-n.x, player.y-n.y);
+        if(d < n.r + player.r && n.stock > 0 && player.carry.length < CAP){
+          n.stock--;
+          player.carry.push(n.type);
+          addParticle(player.x, player.y-30, RES_INFO[n.type].icon, RES_INFO[n.type].color);
+          harvestCooldown = 0.32;
+          break;
+        }
+      }
+    }
+
+    // depositing
+    depositCooldown -= dt;
+    if(depositCooldown <= 0){
+      const d = Math.hypot(player.x-depot.x, player.y-depot.y);
+      if(d < depot.r + player.r && player.carry.length > 0){
+        const item = player.carry.pop();
+        state[item]++;
+        const earned = RES_INFO[item].value;
+        state.cash += earned;
+        addParticle(depot.x + (Math.random()*30-15), depot.y-20, '+$'+earned, '#7CFF9B');
+        depositCooldown = 0.22;
+        syncHud();
+      }
+    }
+
+    // particles
+    for(let i=particles.length-1;i>=0;i--){
+      const p = particles[i];
+      p.t += dt;
+      if(p.t > p.life) particles.splice(i,1);
+    }
+
+    // snow
+    snow.forEach(f=>{
+      f.y += f.s * dt;
+      f.x += f.drift * dt;
+      if(f.y > VH){ f.y = -5; f.x = Math.random()*VW; }
+    });
+  }
+
+  // ---------- Draw ----------
+  function roundRect(x,y,w,h,r){
+    ctx.beginPath();
+    ctx.moveTo(x+r,y);
+    ctx.arcTo(x+w,y,x+w,y+h,r);
+    ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r);
+    ctx.arcTo(x,y,x+w,y,r);
+    ctx.closePath();
+  }
+
+  function drawNode(n){
+    ctx.save();
+    ctx.translate(n.x, n.y);
+    // ring track
+    ctx.beginPath();
+    ctx.arc(0,0,n.r,0,Math.PI*2);
+    ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+    ctx.lineWidth = 3;
+    ctx.setLineDash([6,6]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // base patch
+    ctx.beginPath();
+    ctx.arc(0,0,n.r-8,0,Math.PI*2);
+    ctx.fillStyle = 'rgba(151,109,66,0.25)';
+    ctx.fill();
+
+    // resource icon stack
+    ctx.font = '30px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(RES_INFO[n.type].icon, 0, 4);
+    ctx.restore();
+
+    // count bubble
+    ctx.save();
+    ctx.translate(n.x + n.r*0.62, n.y - n.r*0.62);
+    ctx.beginPath();
+    ctx.arc(0,0,16,0,Math.PI*2);
+    ctx.fillStyle = n.stock>0 ? '#fff' : 'rgba(255,255,255,0.5)';
+    ctx.fill();
+    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = '#00000022';
+    ctx.stroke();
+    ctx.fillStyle = '#1a2230';
+    ctx.font = 'bold 15px Space Grotesk, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(n.stock, 0, 1);
+    ctx.restore();
+  }
+
+  function drawDepot(){
+    ctx.save();
+    ctx.translate(depot.x, depot.y);
+    ctx.beginPath();
+    ctx.arc(0,0,depot.r,0,Math.PI*2);
+    ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+    ctx.lineWidth = 3;
+    ctx.setLineDash([6,6]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.beginPath();
+    ctx.arc(0,0,depot.r-10,0,Math.PI*2);
+    ctx.fillStyle = 'rgba(90,150,70,0.28)';
+    ctx.fill();
+
+    ctx.font = '38px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('💰', 0, 6);
+
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 12px Space Grotesk, sans-serif';
+    ctx.fillText('CAMP', 0, depot.r+16);
+    ctx.restore();
+  }
+
+  function drawWorker(x, y, facing, bob, hooded){
+    ctx.save();
+    ctx.translate(x, y + bob);
+    // shadow
+    ctx.beginPath();
+    ctx.ellipse(0, 16, 14, 5, 0, 0, Math.PI*2);
+    ctx.fillStyle = 'rgba(0,0,0,0.18)';
+    ctx.fill();
+
+    // body
+    ctx.beginPath();
+    ctx.ellipse(0, 4, 11, 14, 0, 0, Math.PI*2);
+    ctx.fillStyle = hooded ? '#3f7fd1' : '#4a9bd8';
+    ctx.fill();
+
+    // head
+    ctx.beginPath();
+    ctx.arc(0, -13, 9, 0, Math.PI*2);
+    ctx.fillStyle = '#e9c9a3';
+    ctx.fill();
+
+    // hood
+    ctx.beginPath();
+    ctx.arc(0, -13, 10, Math.PI*0.15, Math.PI*0.95, false);
+    ctx.strokeStyle = '#2c5faf';
+    ctx.lineWidth = 6;
+    ctx.stroke();
+
+    // face dot
+    ctx.beginPath();
+    ctx.arc(facing*2.5, -13, 1.6, 0, Math.PI*2);
+    ctx.fillStyle = '#2a2a2a';
+    ctx.fill();
+
+    ctx.restore();
+  }
+
+  function draw(){
+    const s = scaleFactor();
+    ctx.save();
+    ctx.setTransform(s,0,0,s,0,0);
+    ctx.clearRect(0,0,VW,VH);
+
+    // sky/ice gradient background
+    const g = ctx.createLinearGradient(0,0,0,VH);
+    g.addColorStop(0, '#bfe4f6');
+    g.addColorStop(0.55, '#e8f4fb');
+    g.addColorStop(1, '#f7fcff');
+    ctx.fillStyle = g;
+    ctx.fillRect(0,0,VW,VH);
+
+    // subtle ice cracks
+    ctx.strokeStyle = 'rgba(120,170,200,0.25)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(60,150); ctx.lineTo(140,260); ctx.lineTo(90,380);
+    ctx.moveTo(420,180); ctx.lineTo(340,300); ctx.lineTo(410,420);
+    ctx.stroke();
+
+    // path connecting nodes to depot
+    ctx.strokeStyle = 'rgba(150,110,60,0.35)';
+    ctx.lineWidth = 14;
+    ctx.lineCap = 'round';
+    nodes.forEach(n=>{
+      ctx.beginPath();
+      ctx.moveTo(n.x, n.y);
+      ctx.lineTo(depot.x, depot.y);
+      ctx.stroke();
+    });
+
+    nodes.forEach(drawNode);
+    drawDepot();
+
+    // decorative idle queue
+    const t = performance.now()/1000;
+    queue.forEach(q=>{
+      const bob = Math.sin(t*2 + q.phase) * 2;
+      drawWorker(q.x, q.y, 1, bob, true);
+    });
+
+    // player
+    drawWorker(player.x, player.y, player.facing, Math.sin(t*8)*1.2, true);
+
+    // carried items above head
+    const n = player.carry.length;
+    if(n>0){
+      ctx.font = '14px sans-serif';
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      for(let i=0;i<n;i++){
+        const ang = -Math.PI/2 - (i - (n-1)/2)*0.35;
+        const cx = player.x + Math.cos(ang)*0;
+        const px = player.x + (i - (n-1)/2)*11;
+        const py = player.y - 34;
+        ctx.fillText(RES_INFO[player.carry[i]].icon, px, py);
+      }
+    }
+
+    // snow
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    snow.forEach(f=>{
+      ctx.beginPath();
+      ctx.arc(f.x, f.y, f.r, 0, Math.PI*2);
+      ctx.fill();
+    });
+
+    // particles
+    particles.forEach(p=>{
+      const a = 1 - p.t/p.life;
+      ctx.globalAlpha = Math.max(0,a);
+      ctx.font = 'bold 16px Space Grotesk, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = p.color;
+      ctx.fillText(p.text, p.x, p.y - p.t*40);
+      ctx.globalAlpha = 1;
+    });
+
+    // joystick visual
+    if(stick.active){
+      ctx.globalAlpha = 0.55;
+      ctx.beginPath();
+      ctx.arc(stick.ox, stick.oy, STICK_MAX, 0, Math.PI*2);
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(stick.ox+stick.dx, stick.oy+stick.dy, 20, 0, Math.PI*2);
+      ctx.fillStyle = '#fff';
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+
+    ctx.restore();
+  }
+
+  function loop(now){
+    const dt = Math.min(0.05, (now-last)/1000);
+    last = now;
+    update(dt);
+    draw();
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+
+  showToast('Haul resources to camp for cash!');
+})();
+</script>
+
+</body>
+</html>
