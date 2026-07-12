@@ -14,6 +14,7 @@
     --p1: #FF3864;
     --p2: #2DE1C2;
     --p3: #FFA33E;
+    --p4: #9B5CF6;
     --text: #E8ECF1;
     --muted: #5B6472;
   }
@@ -103,9 +104,9 @@
     position: relative;
     width: min(1280px, 100%);
     display: grid;
-    grid-template-columns: 1fr auto 1fr auto 1fr;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
     align-items: stretch;
-    gap: 0;
+    gap: 18px;
   }
 
   .card{
@@ -134,6 +135,7 @@
   .card.p1::before{ background: var(--p1); box-shadow: 0 0 14px var(--p1); }
   .card.p2::before{ background: var(--p2); box-shadow: 0 0 14px var(--p2); }
   .card.p3::before{ background: var(--p3); box-shadow: 0 0 14px var(--p3); }
+  .card.p4::before{ background: var(--p4); box-shadow: 0 0 14px var(--p4); }
 
   .card:hover{
     transform: translateY(-6px);
@@ -141,6 +143,7 @@
   .card.p1:hover{ border-color: var(--p1); }
   .card.p2:hover{ border-color: var(--p2); }
   .card.p3:hover{ border-color: var(--p3); }
+  .card.p4:hover{ border-color: var(--p4); }
 
   .tag{
     font-family: 'Press Start 2P', monospace;
@@ -153,6 +156,7 @@
   .card.p1 .tag{ color: var(--p1); }
   .card.p2 .tag{ color: var(--p2); }
   .card.p3 .tag{ color: var(--p3); }
+  .card.p4 .tag{ color: var(--p4); }
 
   .game-name{
     font-family: 'Press Start 2P', monospace;
@@ -181,6 +185,7 @@
   .card.p1 .cta{ color: var(--p1); }
   .card.p2 .cta{ color: var(--p2); }
   .card.p3 .cta{ color: var(--p3); }
+  .card.p4 .cta{ color: var(--p4); }
 
   .cta .arrow{ transition: transform 0.18s ease; }
   .card:hover .arrow{ transform: translateX(6px); }
@@ -223,10 +228,6 @@
     .versus{
       grid-template-columns: 1fr;
     }
-    .vs-divider{
-      padding: 16px 0;
-    }
-    .vs-text{ transform: none; }
   }
 </style>
 </head>
@@ -253,10 +254,6 @@
       </div>
     </a>
 
-    <div class="vs-divider">
-      <div class="vs-text">VS</div>
-    </div>
-
     <a class="card p2" href="./Other/">
       <div>
         <div class="tag">PLAYER 2</div>
@@ -270,15 +267,24 @@
       </div>
     </a>
 
-    <div class="vs-divider">
-      <div class="vs-text">VS</div>
-    </div>
-
     <a class="card p3" href="./RocketLeague/">
       <div>
         <div class="tag">PLAYER 3</div>
         <h2 class="game-name">Rocket Rotation</h2>
         <p class="desc">A 3D car-soccer arcade game. Boost, jump and smash the ball into the goal — every score instantly rotates the sport between soccer, basketball &amp; football, changing the goal and rules under your wheels.</p>
+      </div>
+      <div class="cta">
+        <span><span class="status-dot live"></span>READY</span>
+        <span style="flex-grow:1"></span>
+        <span class="arrow">→</span>
+      </div>
+    </a>
+
+    <a class="card p4" href="./ColorSort/">
+      <div>
+        <div class="tag">PLAYER 4</div>
+        <h2 class="game-name">Color Sort</h2>
+        <p class="desc">A water-sort bottle puzzle. Pour stacked colors between tubes until each bottle holds a single color — undo, reshuffle, and climb through endless procedurally generated levels.</p>
       </div>
       <div class="cta">
         <span><span class="status-dot live"></span>READY</span>

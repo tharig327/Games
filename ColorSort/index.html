@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Color Sort — Tyler's Games</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Space+Grotesk:wght@400;500;700&display=swap');
+
+  :root{
+    --bg: #0B0E14;
+    --panel: #151A24;
+    --panel-line: #232A38;
+    --accent: #2DE1C2;
+    --accent2: #FF3864;
+    --text: #E8ECF1;
+    --muted: #5B6472;
+  }
+
+  *{ box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  html, body{
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Space Grotesk', sans-serif;
+    min-height: 100%;
+    overflow-x: hidden;
+  }
+
+  a{ color: var(--accent); }
+
+  .wrap{
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px 14px 60px;
+  }
+
+  .topbar{
+    width: 100%;
+    max-width: 720px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+
+  .back{
+    font-size: 12px;
+    color: var(--muted);
+    text-decoration: none;
+    letter-spacing: 0.5px;
+    border: 1px solid var(--panel-line);
+    padding: 6px 10px;
+    border-radius: 4px;
+  }
+  .back:hover{ color: var(--accent); border-color: var(--accent); }
+
+  h1{
+    font-family: 'Press Start 2P', monospace;
+    font-size: clamp(16px, 4vw, 24px);
+    letter-spacing: 2px;
+    margin: 10px 0 2px;
+    text-align: center;
+    text-shadow: 0 0 12px rgba(45,225,194,0.35);
+  }
+
+  .sub{
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 18px;
+    text-align: center;
+  }
+
+  .hud{
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-bottom: 18px;
+  }
+
+  .chip{
+    background: var(--panel);
+    border: 1px solid var(--panel-line);
+    border-radius: 4px;
+    padding: 8px 14px;
+    font-size: 12px;
+    color: var(--muted);
+    display: flex;
+    gap: 6px;
+    align-items: baseline;
+  }
+  .chip b{ color: var(--text); font-size: 14px; }
+
+  .controls{
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-bottom: 22px;
+  }
+
+  button.ctrl{
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+    font-size: 13px;
+    background: var(--panel);
+    color: var(--text);
+    border: 1px solid var(--panel-line);
+    border-radius: 4px;
+    padding: 9px 16px;
+    cursor: pointer;
+    transition: border-color .15s ease, transform .15s ease;
+  }
+  button.ctrl:hover{ border-color: var(--accent); transform: translateY(-2px); }
+  button.ctrl:active{ transform: translateY(0); }
+  button.ctrl:disabled{ opacity: .4; cursor: default; transform: none; }
+  button.ctrl.primary{ border-color: var(--accent); color: var(--accent); }
+  button.ctrl.danger{ border-color: var(--accent2); color: var(--accent2); }
+
+  .board{
+    width: 100%;
+    max-width: 720px;
+    background: var(--panel);
+    border: 1px solid var(--panel-line);
+    border-radius: 10px;
+    padding: 28px 18px 22px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 22px 16px;
+    justify-content: center;
+    position: relative;
+  }
+
+  .bottle{
+    --cap: 4;
+    width: 56px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    cursor: pointer;
+    user-select: none;
+    transition: transform .18s cubic-bezier(.34,1.56,.64,1);
+  }
+
+  .bottle.selected{
+    transform: translateY(-18px);
+  }
+
+  .bottle.hint{
+    animation: pulse 1s ease-in-out infinite;
+  }
+  @keyframes pulse{
+    0%,100%{ filter: drop-shadow(0 0 0 rgba(45,225,194,0)); }
+    50%{ filter: drop-shadow(0 0 8px rgba(45,225,194,0.9)); }
+  }
+
+  .neck{
+    width: 20px;
+    height: 12px;
+    background: rgba(255,255,255,0.06);
+    border: 2px solid rgba(255,255,255,0.18);
+    border-bottom: none;
+    border-radius: 4px 4px 0 0;
+  }
+
+  .body{
+    width: 56px;
+    height: 132px;
+    border: 2px solid rgba(255,255,255,0.22);
+    border-top: none;
+    border-radius: 0 0 16px 16px;
+    background: rgba(255,255,255,0.04);
+    display: flex;
+    flex-direction: column-reverse;
+    overflow: hidden;
+    position: relative;
+    box-shadow: inset 0 0 12px rgba(0,0,0,0.35);
+  }
+
+  .body::after{
+    content:"";
+    position: absolute;
+    top: 4px; left: 5px;
+    width: 6px;
+    height: 60%;
+    background: linear-gradient(to bottom, rgba(255,255,255,0.35), transparent);
+    border-radius: 4px;
+    pointer-events: none;
+  }
+
+  .segment{
+    width: 100%;
+    flex: 0 0 auto;
+    transition: height .25s ease, opacity .25s ease;
+    position: relative;
+  }
+  .segment::before{
+    content:"";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to bottom, rgba(255,255,255,0.25), rgba(0,0,0,0.08));
+  }
+
+  .bottle.locked{
+    opacity: 0.55;
+    cursor: default;
+  }
+
+  .win-glow .body{
+    box-shadow: 0 0 16px 2px currentColor, inset 0 0 12px rgba(0,0,0,0.35);
+  }
+
+  .overlay{
+    position: fixed;
+    inset: 0;
+    background: rgba(5,7,12,0.82);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .25s ease;
+  }
+  .overlay.show{ opacity: 1; pointer-events: auto; }
+
+  .modal{
+    background: var(--panel);
+    border: 1px solid var(--panel-line);
+    border-radius: 10px;
+    padding: 32px 36px;
+    text-align: center;
+    max-width: 340px;
+    transform: scale(.9);
+    transition: transform .25s ease;
+  }
+  .overlay.show .modal{ transform: scale(1); }
+
+  .modal h2{
+    font-family: 'Press Start 2P', monospace;
+    font-size: 18px;
+    color: var(--accent);
+    margin: 0 0 14px;
+    text-shadow: 0 0 10px rgba(45,225,194,0.5);
+  }
+  .modal p{ color: var(--muted); font-size: 13px; margin: 6px 0; }
+  .modal .stat b{ color: var(--text); }
+  .modal-btns{ margin-top: 22px; display: flex; gap: 10px; justify-content: center; }
+
+  footer{
+    margin-top: 40px;
+    font-size: 11px;
+    color: var(--muted);
+    text-align: center;
+  }
+
+  @media (max-width: 420px){
+    .bottle, .body{ width: 46px; }
+    .body{ height: 112px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="topbar">
+    <a class="back" href="../">← Library</a>
+    <a class="back" href="#" id="howtoBtn">How to play</a>
+  </div>
+
+  <h1>COLOR SORT</h1>
+  <div class="sub">pour until every bottle holds one color</div>
+
+  <div class="hud">
+    <div class="chip">LEVEL <b id="hudLevel">1</b></div>
+    <div class="chip">MOVES <b id="hudMoves">0</b></div>
+    <div class="chip">TIME <b id="hudTime">0:00</b></div>
+    <div class="chip">BEST LEVEL <b id="hudBest">1</b></div>
+  </div>
+
+  <div class="controls">
+    <button class="ctrl" id="undoBtn">↶ Undo</button>
+    <button class="ctrl" id="restartBtn">⟲ Restart Level</button>
+    <button class="ctrl primary" id="newBtn">🎲 New Shuffle</button>
+  </div>
+
+  <div class="board" id="board"></div>
+
+  <footer>Color Sort · inspired by classic bottle-sorting puzzles</footer>
+</div>
+
+<div class="overlay" id="winOverlay">
+  <div class="modal">
+    <h2>SOLVED!</h2>
+    <p class="stat">Moves: <b id="winMoves">0</b></p>
+    <p class="stat">Time: <b id="winTime">0:00</b></p>
+    <div class="modal-btns">
+      <button class="ctrl" id="replayBtn">Replay</button>
+      <button class="ctrl primary" id="nextBtn">Next Level →</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="howtoOverlay">
+  <div class="modal" style="max-width:380px;">
+    <h2 style="font-size:15px;">HOW TO PLAY</h2>
+    <p style="text-align:left;">Tap a bottle to pick up its top color, then tap another bottle to pour it in.</p>
+    <p style="text-align:left;">You can only pour onto an empty bottle or one whose top color matches. A bottle is full at 4 units.</p>
+    <p style="text-align:left;">Sort every color into its own bottle — with no mixed bottles left — to win the level.</p>
+    <div class="modal-btns">
+      <button class="ctrl primary" id="closeHowto">Got it</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  var CAPACITY = 4;
+  var PALETTE = [
+    "#8BC53F", "#2FD5C4", "#FF3B7F", "#9B5CF6",
+    "#FF9F1C", "#FF4B4B", "#29B6F6", "#FFE347",
+    "#F06292", "#00BFA5", "#7C4DFF", "#FFB300",
+    "#26C6DA", "#EF5350"
+  ];
+
+  var LS_LEVEL = "colorsort_level";
+  var LS_BEST = "colorsort_best_level";
+
+  var state = {
+    level: 1,
+    bottles: [],
+    colorsCount: 4,
+    selected: null,
+    moves: 0,
+    history: [],
+    startTime: null,
+    timerId: null,
+    won: false
+  };
+
+  var boardEl = document.getElementById("board");
+  var hudLevel = document.getElementById("hudLevel");
+  var hudMoves = document.getElementById("hudMoves");
+  var hudTime = document.getElementById("hudTime");
+  var hudBest = document.getElementById("hudBest");
+  var winOverlay = document.getElementById("winOverlay");
+  var winMoves = document.getElementById("winMoves");
+  var winTime = document.getElementById("winTime");
+  var howtoOverlay = document.getElementById("howtoOverlay");
+
+  function colorsForLevel(level){
+    return Math.min(4 + Math.floor((level - 1) / 1), PALETTE.length - 2);
+  }
+  function emptiesForLevel(colorsCount){
+    return colorsCount <= 5 ? 3 : 2;
+  }
+
+  function cloneBottles(b){
+    return b.map(function(x){ return x.slice(); });
+  }
+
+  function topColor(bottle){
+    return bottle.length ? bottle[bottle.length - 1] : null;
+  }
+
+  function topRunLength(bottle){
+    if(!bottle.length) return 0;
+    var c = topColor(bottle), n = 0;
+    for(var i = bottle.length - 1; i >= 0; i--){
+      if(bottle[i] === c) n++; else break;
+    }
+    return n;
+  }
+
+  function canPour(bottles, src, dst){
+    if(src === dst) return false;
+    var s = bottles[src], d = bottles[dst];
+    if(!s.length) return false;
+    if(d.length >= CAPACITY) return false;
+    if(!d.length) return true;
+    return topColor(d) === topColor(s);
+  }
+
+  function pourAmount(bottles, src, dst){
+    var run = topRunLength(bottles[src]);
+    var space = CAPACITY - bottles[dst].length;
+    return Math.min(run, space);
+  }
+
+  function doPour(bottles, src, dst){
+    var amt = pourAmount(bottles, src, dst);
+    var color = topColor(bottles[src]);
+    for(var i = 0; i < amt; i++){
+      bottles[src].pop();
+      bottles[dst].push(color);
+    }
+    return amt;
+  }
+
+  function isSolvedBottle(b){
+    if(b.length === 0) return true;
+    if(b.length !== CAPACITY) return false;
+    return b.every(function(c){ return c === b[0]; });
+  }
+
+  function checkWin(bottles){
+    return bottles.every(isSolvedBottle);
+  }
+
+  function shuffle(arr){
+    for(var i = arr.length - 1; i > 0; i--){
+      var j = Math.floor(Math.random() * (i + 1));
+      var tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
+    }
+    return arr;
+  }
+
+  function serialize(bottles){
+    return bottles.map(function(b){ return b.join(","); }).sort().join("|");
+  }
+
+  function isSolvable(startBottles){
+    var visited = {};
+    visited[serialize(startBottles)] = true;
+    var stack = [startBottles];
+    var explored = 0;
+    var MAX_STATES = 30000;
+
+    while(stack.length && explored < MAX_STATES){
+      var cur = stack.pop();
+      explored++;
+      if(checkWin(cur)) return true;
+
+      for(var s = 0; s < cur.length; s++){
+        if(!cur[s].length) continue;
+        for(var d = 0; d < cur.length; d++){
+          if(!canPour(cur, s, d)) continue;
+          var next = cloneBottles(cur);
+          doPour(next, s, d);
+          var key = serialize(next);
+          if(!visited[key]){
+            visited[key] = true;
+            stack.push(next);
+          }
+        }
+      }
+    }
+    return false;
+  }
+
+  function dealBottles(colorsCount, empties){
+    var units = [];
+    for(var c = 0; c < colorsCount; c++){
+      for(var i = 0; i < CAPACITY; i++) units.push(c);
+    }
+    shuffle(units);
+
+    var bottles = [];
+    for(var b = 0; b < colorsCount; b++){
+      bottles.push(units.slice(b * CAPACITY, (b + 1) * CAPACITY));
+    }
+    for(var e = 0; e < empties; e++) bottles.push([]);
+    return bottles;
+  }
+
+  function generateLevel(level){
+    var colorsCount = colorsForLevel(level);
+    var empties = emptiesForLevel(colorsCount);
+
+    var bottles = null;
+    var attempts = colorsCount <= 8 ? 25 : 8;
+    for(var a = 0; a < attempts; a++){
+      var candidate = dealBottles(colorsCount, empties);
+      if(checkWin(candidate)) continue;
+      if(isSolvable(candidate)){
+        bottles = candidate;
+        break;
+      }
+    }
+    if(!bottles) bottles = dealBottles(colorsCount, empties);
+
+    return { bottles: bottles, colorsCount: colorsCount };
+  }
+
+  function startLevel(level, reuse){
+    state.level = level;
+    var gen = reuse || generateLevel(level);
+    state.bottles = gen.bottles;
+    state.colorsCount = gen.colorsCount;
+    state._lastGen = { bottles: cloneBottles(gen.bottles), colorsCount: gen.colorsCount };
+    state.selected = null;
+    state.moves = 0;
+    state.history = [];
+    state.won = false;
+    state.startTime = Date.now();
+    localStorage.setItem(LS_LEVEL, String(level));
+    var best = parseInt(localStorage.getItem(LS_BEST) || "1", 10);
+    if(level > best){ localStorage.setItem(LS_BEST, String(level)); }
+    resetTimer();
+    render();
+    updateHud();
+  }
+
+  state._lastGen = null;
+  function restartSameLevel(){
+    if(state._lastGen){
+      startLevel(state.level, { bottles: cloneBottles(state._lastGen.bottles), colorsCount: state._lastGen.colorsCount });
+    }
+  }
+
+  function resetTimer(){
+    if(state.timerId) clearInterval(state.timerId);
+    state.timerId = setInterval(function(){
+      if(!state.won) updateHud();
+    }, 500);
+  }
+
+  function fmtTime(ms){
+    var s = Math.floor(ms / 1000);
+    var mm = Math.floor(s / 60);
+    var ss = s % 60;
+    return mm + ":" + (ss < 10 ? "0" : "") + ss;
+  }
+
+  function updateHud(){
+    hudLevel.textContent = state.level;
+    hudMoves.textContent = state.moves;
+    hudTime.textContent = fmtTime(Date.now() - state.startTime);
+    hudBest.textContent = localStorage.getItem(LS_BEST) || "1";
+  }
+
+  function render(){
+    boardEl.innerHTML = "";
+    state.bottles.forEach(function(bottle, idx){
+      var el = document.createElement("div");
+      el.className = "bottle" + (state.selected === idx ? " selected" : "");
+      el.dataset.idx = idx;
+
+      var neck = document.createElement("div");
+      neck.className = "neck";
+      el.appendChild(neck);
+
+      var body = document.createElement("div");
+      body.className = "body";
+      bottle.forEach(function(colorIdx){
+        var seg = document.createElement("div");
+        seg.className = "segment";
+        seg.style.height = (100 / CAPACITY) + "%";
+        seg.style.background = PALETTE[colorIdx];
+        body.appendChild(seg);
+      });
+      el.appendChild(body);
+
+      if(isSolvedBottle(bottle) && bottle.length){
+        el.classList.add("win-glow");
+        body.style.color = PALETTE[bottle[0]];
+      }
+
+      el.addEventListener("click", function(){ onBottleClick(idx); });
+      boardEl.appendChild(el);
+    });
+  }
+
+  function pushHistory(){
+    state.history.push({
+      bottles: cloneBottles(state.bottles),
+      moves: state.moves
+    });
+    if(state.history.length > 200) state.history.shift();
+  }
+
+  function onBottleClick(idx){
+    if(state.won) return;
+    if(state.selected === null){
+      if(state.bottles[idx].length) state.selected = idx;
+      render();
+      return;
+    }
+    if(state.selected === idx){
+      state.selected = null;
+      render();
+      return;
+    }
+    if(canPour(state.bottles, state.selected, idx)){
+      pushHistory();
+      doPour(state.bottles, state.selected, idx);
+      state.moves++;
+      state.selected = null;
+      render();
+      updateHud();
+      if(checkWin(state.bottles)){
+        state.won = true;
+        setTimeout(showWin, 300);
+      }
+    } else {
+      state.selected = state.bottles[idx].length ? idx : null;
+      render();
+    }
+  }
+
+  function showWin(){
+    winMoves.textContent = state.moves;
+    winTime.textContent = fmtTime(Date.now() - state.startTime);
+    winOverlay.classList.add("show");
+  }
+  function hideWin(){
+    winOverlay.classList.remove("show");
+  }
+
+  document.getElementById("undoBtn").addEventListener("click", function(){
+    if(!state.history.length || state.won) return;
+    var prev = state.history.pop();
+    state.bottles = prev.bottles;
+    state.moves = prev.moves;
+    state.selected = null;
+    render();
+    updateHud();
+  });
+
+  document.getElementById("restartBtn").addEventListener("click", function(){
+    restartSameLevel();
+  });
+
+  document.getElementById("newBtn").addEventListener("click", function(){
+    startLevel(state.level);
+  });
+
+  document.getElementById("replayBtn").addEventListener("click", function(){
+    hideWin();
+    restartSameLevel();
+  });
+
+  document.getElementById("nextBtn").addEventListener("click", function(){
+    hideWin();
+    startLevel(state.level + 1);
+  });
+
+  document.getElementById("howtoBtn").addEventListener("click", function(e){
+    e.preventDefault();
+    howtoOverlay.classList.add("show");
+  });
+  document.getElementById("closeHowto").addEventListener("click", function(){
+    howtoOverlay.classList.remove("show");
+  });
+
+  var startingLevel = parseInt(localStorage.getItem(LS_LEVEL) || "1", 10);
+  if(!startingLevel || startingLevel < 1) startingLevel = 1;
+  startLevel(startingLevel);
+})();
+</script>
+
+</body>
+</html>
